@@ -1,0 +1,23 @@
+{
+  "name": "discord-crm-bot",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "deploy": "node scripts/deploy-commands.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "chrono-node": "^2.8.4",
+    "date-fns": "^4.1.0",
+    "discord.js": "^14.21.0",
+    "dotenv": "^16.6.1",
+    "googleapis": "^156.0.0",
+    "node-schedule": "^2.1.1",
+    "uuid": "^11.1.0"
+  }
+}

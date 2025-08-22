@@ -1,0 +1,195 @@
+{
+  "seq": {
+    "client": 19,
+    "job": 20,
+    "task": 3
+  },
+  "clients": [
+    {
+      "id": "C16",
+      "code": "RHO1",
+      "name": "Rhompa",
+      "description": "Neo, Limitless, gen.pro",
+      "contact": "Rhompa",
+      "email": "",
+      "phone": "",
+      "notes": "",
+      "archived": false,
+      "createdAt": "2025-08-19T06:06:32.749Z",
+      "channelId": "1407247347645415425",
+      "cardMessageId": "1407247348765167670",
+      "clientCardMessageId": "1407262736282419250"
+    },
+    {
+      "id": "C17",
+      "code": "REC1",
+      "name": "Recruits",
+      "description": "Abstract NFT",
+      "contact": "Stew",
+      "email": "",
+      "phone": "",
+      "notes": "",
+      "archived": false,
+      "createdAt": "2025-08-19T06:23:09.532Z",
+      "channelId": "1407248508271984713",
+      "cardMessageId": "1407248509777739857",
+      "clientCardMessageId": "1407269484774822001"
+    },
+    {
+      "id": "C18",
+      "code": "TES1",
+      "name": "TEST",
+      "contact": "",
+      "email": "",
+      "phone": "",
+      "notes": "",
+      "description": "This is only a test",
+      "channelId": "1407411475093651476",
+      "clientCardMessageId": "1407411477656240178",
+      "archived": false,
+      "createdAt": "2025-08-19T17:10:41.776Z"
+    },
+    {
+      "id": "065acda8-916d-42ac-b437-b23297d5acf9",
+      "name": "XXX",
+      "contact": "jeff",
+      "method": "",
+      "createdAt": "2025-08-20T17:38:10.739Z"
+    },
+    {
+      "id": "976c6513-e906-4a53-a2c3-cb955fbc8ba3",
+      "name": "ZZZ",
+      "contactName": "",
+      "contactMethod": "",
+      "jobs": []
+    },
+    {
+      "id": "b7a067e1-d678-4ab8-a66f-757f324a6060",
+      "name": "Test 1",
+      "contactName": "",
+      "contactMethod": "",
+      "jobs": []
+    },
+    {
+      "id": "2e5920d1-826b-457d-a372-94bb1eb6daf1",
+      "code": "TEST",
+      "name": "Test 2",
+      "contactName": "Test Contact",
+      "contactMethod": "",
+      "channelId": "1349404908226478110",
+      "jobs": []
+    },
+    {
+      "id": "bd648148-40d2-4b14-a0d2-a6adb5fc4d3d",
+      "code": "ACME",
+      "name": "Acme Corp",
+      "contactName": "John Doe",
+      "contactMethod": "ohn@example.com",
+      "channelId": "1349404908226478110",
+      "jobs": []
+    },
+    {
+      "id": "78f54430-257f-48f4-9b39-36e92273ffe9",
+      "name": "Acme Corp",
+      "contactName": "Alice",
+      "contactMethod": "alice@acme.com",
+      "code": "ACM1",
+      "createdAt": "2025-08-21T01:07:26.673Z"
+    },
+    {
+      "id": "dc20445e-9899-4ca0-a8b7-c65f3c2d17aa",
+      "name": "John's Auto",
+      "code": "JOHN",
+      "contactName": "John Doe",
+      "contactMethod": "2813308004"
+    }
+  ],
+  "jobs": [
+    {
+      "id": "J14",
+      "code": "RHO1-001",
+      "title": "Website",
+      "clientId": "C16",
+      "status": "in_progress",
+      "priority": "medium",
+      "assigneeId": null,
+      "deadline": "2025-08-21T06:25:30.871Z",
+      "budget": null,
+      "tags": [],
+      "description": "",
+      "threadId": "1407249100524617730",
+      "threadCardMessageId": "1407249102604865658",
+      "createdAt": "2025-08-19T06:25:30.872Z",
+      "closedAt": null
+    },
+    {
+      "id": "J15",
+      "code": "RHO1-002",
+      "title": "MC Tracker",
+      "clientId": "C16",
+      "status": "in_progress",
+      "priority": "medium",
+      "assigneeId": null,
+      "deadline": "2025-08-21T06:25:49.436Z",
+      "budget": null,
+      "tags": [],
+      "description": "",
+      "threadId": "1407249178047938643",
+      "threadCardMessageId": "1407249179775864914",
+      "createdAt": "2025-08-19T06:25:49.436Z",
+      "closedAt": null
+    },
+    {
+      "id": "J19",
+      "code": "TES1-001",
+      "title": "Test 1",
+      "clientId": "C18",
+      "status": "in_progress",
+      "priority": "medium",
+      "assigneeId": null,
+      "deadline": "2026-08-19T17:11:08.393Z",
+      "budget": null,
+      "tags": [],
+      "description": "",
+      "items": [],
+      "threadId": "1407411586318209125",
+      "threadCardMessageId": "1407411587626565706",
+      "createdAt": "2025-08-19T17:11:08.435Z",
+      "closedAt": null
+    },
+    {
+      "id": "51454a1a-14e0-434a-a9a3-05b3c58c620f",
+      "clientId": "065acda8-916d-42ac-b437-b23297d5acf9",
+      "title": "Dev work",
+      "status": "open",
+      "notes": "",
+      "createdAt": "2025-08-20T17:45:14.580Z"
+    },
+    {
+      "id": "1f5d225f-35e5-4b70-bd21-e73b0e880c9a",
+      "title": "Test Job 1",
+      "clientId": "b7a067e1-d678-4ab8-a66f-757f324a6060",
+      "status": "Open",
+      "dueAt": null
+    },
+    {
+      "id": "e6b185e2-543d-42e8-a9f4-0ecb5e18a12c",
+      "jobCode": "ACME-001",
+      "title": "Website Redesign",
+      "clientId": "bd648148-40d2-4b14-a0d2-a6adb5fc4d3d",
+      "clientCode": "ACME",
+      "status": "Open",
+      "dueAt": null
+    },
+    {
+      "id": "903344d8-c312-4286-ae61-0440c75ec7a7",
+      "jobCode": "ACM1-001",
+      "clientId": "78f54430-257f-48f4-9b39-36e92273ffe9",
+      "clientCode": "ACM1",
+      "title": "Website Redesign",
+      "status": "Open",
+      "createdAt": "2025-08-21T01:12:43.105Z"
+    }
+  ],
+  "tasks": []
+}
