@@ -1,0 +1,20 @@
+{
+  "seq": {
+    "client": 1,
+    "job": 1,
+    "task": 1
+  },
+  "clients": [
+    {
+      "id": "d621b347-20d4-467e-8e99-15bb5c515511",
+      "name": "Test 1",
+      "code": "TEST",
+      "contactName": "Mr Test",
+      "contactMethod": "X",
+      "channelId": "1408315353414635591",
+      "clientCardMessageId": "1408315355146879076"
+    }
+  ],
+  "jobs": [],
+  "tasks": []
+}

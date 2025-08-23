@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: discord-crm-bot
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    plan: starter
+    env: node
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
