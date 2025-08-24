@@ -280,7 +280,7 @@ module.exports = {
               }
             }
           }
-          await fullSync(interaction.client, interaction.guildId);
+          smartSync(interaction.client, interaction.guildId);
           console.log('✅ Client card and boards refreshed');
         } catch (error) {
           console.error('❌ Failed to refresh client card/job thread/boards:', error);
