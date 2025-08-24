@@ -4,6 +4,7 @@ const { getClients, getJobs, createJob, updateJobThread, updateJob } = require('
 const { refreshAllBoards } = require('../lib/board');
 const { ensureClientCard } = require('../lib/clientCard');
 const { ensureJobThread } = require('../lib/jobThreads');
+const { fullSync } = require('../lib/fullSync');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -184,7 +185,7 @@ module.exports = {
 
         // Refresh boards to show new job
         try {
-          await refreshAllBoards(interaction.client);
+          await fullSync(interaction.client, interaction.guildId);
           console.log('✅ Boards refreshed with new job');
         } catch (error) {
           console.error('Failed to refresh boards:', error);
@@ -276,7 +277,7 @@ module.exports = {
               }
             }
           }
-          await refreshAllBoards(interaction.client);
+          await fullSync(interaction.client, interaction.guildId);
           console.log('✅ Client card and boards refreshed');
         } catch (error) {
           console.error('❌ Failed to refresh client card/job thread/boards:', error);
