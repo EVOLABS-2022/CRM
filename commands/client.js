@@ -3,6 +3,7 @@ const { v4: uuidv4 } = require('uuid');
 const { createClient, getClients, updateClientChannel, updateClient } = require('../lib/sheetsDb');
 const { ensureClientCard } = require('../lib/clientCard');
 const { refreshAllBoards } = require('../lib/board');
+const { fullSync } = require('../lib/fullSync');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -125,13 +126,8 @@ module.exports = {
           console.error('❌ Failed to create client channel:', error);
         }
 
-        // Refresh boards to show new client
-        try {
-          await refreshAllBoards(interaction.client);
-          console.log('✅ Boards refreshed with new client');
-        } catch (error) {
-          console.error('Failed to refresh boards:', error);
-        }
+        // Full sync to update all boards and displays
+        await fullSync(interaction.client, interaction.guildId);
 
         await interaction.editReply({
           content: `✅ Created client ${name} (Code: ${code}, ID: ${client.id})`
