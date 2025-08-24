@@ -21,28 +21,55 @@ module.exports = {
       // Initialize sheets if needed
       await initializeSheets();
       
-      // Get fresh data from Google Sheets
+      // Get fresh data from Google Sheets in parallel
       console.log('📊 Loading data from Google Sheets...');
-      const clients = await getClients();
-      const jobs = await getJobs();
-      const invoices = await getInvoices();
+      const [clients, jobs, invoices] = await Promise.all([
+        getClients(),
+        getJobs(), 
+        getInvoices()
+      ]);
       
       console.log(`📋 Loaded from Sheets: ${clients.length} clients, ${jobs.length} jobs, ${invoices.length} invoices`);
       
+      // Update progress: Data loaded
+      const progressEmbed1 = new EmbedBuilder()
+        .setTitle('🔄 Sync in Progress...')
+        .setDescription('Data loaded from Google Sheets. Cleaning up tasks...')
+        .setColor(0x3498db);
+      await interaction.editReply({ embeds: [progressEmbed1] });
+      
       // Clean up orphaned tasks from closed jobs
       await cleanupTasksForClosedJobs();
+      
+      // Update progress: Channel sync
+      const progressEmbed2 = new EmbedBuilder()
+        .setTitle('🔄 Sync in Progress...')
+        .setDescription('Syncing client channels and cards...')
+        .setColor(0x3498db);
+      await interaction.editReply({ embeds: [progressEmbed2] });
       
       // Ensure every client has a channel + card first
       console.log('🔄 Starting client channel sync...');
       await syncAllClientChannelsAndCards(interaction.client, interaction.guildId);
       console.log('✅ Client channel sync complete');
       
-      // Then refresh boards with Sheets data
-      await refreshAllClientPanels(interaction.client);
-      await refreshAllBoards(interaction.client);
-      await refreshAllTaskBoards(interaction.client);
+      // Update progress: Board refresh
+      const progressEmbed3 = new EmbedBuilder()
+        .setTitle('🔄 Sync in Progress...')
+        .setDescription('Refreshing all boards and panels...')
+        .setColor(0x3498db);
+      await interaction.editReply({ embeds: [progressEmbed3] });
+      
+      // Then refresh boards with Sheets data in parallel where possible
+      await Promise.all([
+        refreshAllClientPanels(interaction.client),
+        refreshAllBoards(interaction.client),
+        refreshAllTaskBoards(interaction.client),
+        refreshAllAdminBoards(interaction.client)
+      ]);
+      
+      // Refresh invoices board separately (needs data dependencies)
       await refreshInvoicesBoard(interaction.client, invoices, clients, jobs);
-      await refreshAllAdminBoards(interaction.client);
 
       const embed = new EmbedBuilder()
         .setTitle('✅ Sync Complete')
