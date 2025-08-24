@@ -4,7 +4,7 @@ const { getClients, getJobs, createJob, updateJobThread, updateJob } = require('
 const { refreshAllBoards } = require('../lib/board');
 const { ensureClientCard } = require('../lib/clientCard');
 const { ensureJobThread } = require('../lib/jobThreads');
-const { fullSync } = require('../lib/fullSync');
+const { smartSync } = require('../lib/smartSync');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -191,13 +191,8 @@ module.exports = {
           console.error('Failed to update client card:', error);
         }
 
-        // Refresh all boards to show new job
-        try {
-          await fullSync(interaction.client, interaction.guildId);
-          console.log('✅ Boards refreshed with new job');
-        } catch (error) {
-          console.error('Failed to refresh boards:', error);
-        }
+        // Smart sync - instant response, background sync
+        smartSync(interaction.client, interaction.guildId);
 
         console.log('✅ Job creation complete, sending reply...');
         await interaction.editReply({
