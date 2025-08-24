@@ -201,6 +201,14 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Check if user has Office role for invoice access
+    if (!interaction.member.roles.cache.has('1408987391162585138')) {
+      return interaction.reply({ 
+        content: '❌ You need the Office role to access invoice commands.',
+        ephemeral: true 
+      });
+    }
+    
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'create') {
