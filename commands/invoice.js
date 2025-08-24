@@ -268,8 +268,8 @@ module.exports = {
           });
         }
 
-        // Generate invoice number by finding the highest existing number
-        let maxInvoiceNum = 0;
+        // Generate invoice number by finding the highest existing number (starting from 679)
+        let maxInvoiceNum = 678; // Start before 679 so first invoice will be 000679
         for (const existingInvoice of existingInvoices) {
           const num = parseInt(existingInvoice.id, 10);
           if (!isNaN(num) && num > maxInvoiceNum) {
