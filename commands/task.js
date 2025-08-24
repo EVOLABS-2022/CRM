@@ -4,6 +4,7 @@ const chrono = require('chrono-node');
 const { v4: uuidv4 } = require('uuid');
 const { getJobs, createTask, getTasks, updateTask } = require('../lib/sheetsDb');
 const { refreshAllTaskBoards } = require('../utils/taskBoard');
+const { smartSync } = require('../lib/smartSync');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -204,7 +205,7 @@ module.exports = {
 
         // Refresh task boards
         try {
-          await refreshAllTaskBoards(interaction.client);
+          smartSync(interaction.client, interaction.guildId);
         } catch (error) {
           console.error('Failed to refresh task boards:', error);
         }
@@ -292,7 +293,7 @@ module.exports = {
         
         // Refresh task boards
         try {
-          await refreshAllTaskBoards(interaction.client);
+          smartSync(interaction.client, interaction.guildId);
         } catch (error) {
           console.error('Failed to refresh task boards:', error);
         }
@@ -361,7 +362,7 @@ module.exports = {
         
         // Refresh task boards
         try {
-          await refreshAllTaskBoards(interaction.client);
+          smartSync(interaction.client, interaction.guildId);
         } catch (error) {
           console.error('Failed to refresh task boards:', error);
         }
