@@ -6,9 +6,9 @@ const { ensureClientCard } = require('../lib/clientCard');
 const { refreshAllBoards } = require('../lib/board');
 const { smartSync } = require('../lib/smartSync');
 
-// Generate 8-character auth code (mix of letters and numbers)
+// Generate 8-character auth code (mix of upper/lower letters and numbers)
 function generateAuthCode() {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
   
   for (let i = 0; i < 8; i++) {
@@ -62,6 +62,11 @@ module.exports = {
         .addStringOption(opt =>
           opt.setName('notes').setDescription('Notes about previous work and interactions')
         )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('migrate-auth')
+        .setDescription('Add auth codes to existing clients that don\'t have them')
     ),
 
   async autocomplete(interaction) {
@@ -243,6 +248,45 @@ module.exports = {
         console.error('❌ Client edit failed:', error);
         await interaction.editReply({
           content: `❌ Failed to edit client: ${error.message}`
+        });
+      }
+    }
+
+    if (sub === 'migrate-auth') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      
+      try {
+        const clients = await getClients();
+        const clientsNeedingAuth = clients.filter(c => !c.authCode);
+        
+        if (clientsNeedingAuth.length === 0) {
+          return await interaction.editReply({
+            content: '✅ All clients already have auth codes.'
+          });
+        }
+
+        let updated = 0;
+        for (const client of clientsNeedingAuth) {
+          // Generate unique auth code
+          let authCode;
+          do {
+            authCode = generateAuthCode();
+          } while (clients.some(c => c.authCode === authCode));
+          
+          // Update client with auth code
+          await updateClient(client.id, { authCode });
+          console.log(`✅ Added auth code ${authCode} to client ${client.name}`);
+          updated++;
+        }
+
+        await interaction.editReply({
+          content: `✅ Added auth codes to ${updated} clients. Please restart the bot to refresh client cards.`
+        });
+        
+      } catch (error) {
+        console.error('❌ Auth migration failed:', error);
+        await interaction.editReply({
+          content: `❌ Failed to migrate auth codes: ${error.message}`
         });
       }
     }
