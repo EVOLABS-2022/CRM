@@ -67,6 +67,11 @@ module.exports = {
       sub
         .setName('migrate-auth')
         .setDescription('Add auth codes to existing clients that don\'t have them')
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('cleanup-channels')
+        .setDescription('Remove duplicate client channels and fix channel mappings')
     ),
 
   async autocomplete(interaction) {
@@ -287,6 +292,85 @@ module.exports = {
         console.error('❌ Auth migration failed:', error);
         await interaction.editReply({
           content: `❌ Failed to migrate auth codes: ${error.message}`
+        });
+      }
+    }
+
+    if (sub === 'cleanup-channels') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      
+      try {
+        const guild = interaction.guild;
+        const clients = await getClients();
+        
+        // Find CRM category
+        const crmCategory = guild.channels.cache.find(
+          c => c.type === 4 && c.name === '🗂️ | CRM' // ChannelType.GuildCategory = 4
+        );
+        
+        if (!crmCategory) {
+          return await interaction.editReply({
+            content: '❌ CRM category not found.'
+          });
+        }
+
+        let duplicatesRemoved = 0;
+        let channelsFixed = 0;
+        
+        // For each client, find their channels
+        for (const client of clients) {
+          const expectedName = `🪪-${client.code.toLowerCase()}-${client.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+          
+          // Find all channels matching this pattern
+          const matchingChannels = guild.channels.cache.filter(
+            c => c.name === expectedName && c.type === 0 // ChannelType.GuildText = 0
+          );
+          
+          if (matchingChannels.size > 1) {
+            console.log(`🔍 Found ${matchingChannels.size} channels for ${client.name}: ${expectedName}`);
+            
+            // Keep the first one in the CRM category, delete the rest
+            const channelsArray = Array.from(matchingChannels.values());
+            const crmChannels = channelsArray.filter(c => c.parentId === crmCategory.id);
+            const otherChannels = channelsArray.filter(c => c.parentId !== crmCategory.id);
+            
+            let keepChannel;
+            if (crmChannels.length > 0) {
+              keepChannel = crmChannels[0];
+              // Delete other CRM channels
+              for (let i = 1; i < crmChannels.length; i++) {
+                await crmChannels[i].delete('Removing duplicate client channel');
+                duplicatesRemoved++;
+              }
+            } else {
+              keepChannel = channelsArray[0];
+              // Move to CRM category
+              await keepChannel.setParent(crmCategory.id);
+            }
+            
+            // Delete all other channels
+            for (const channel of otherChannels) {
+              await channel.delete('Removing duplicate client channel');
+              duplicatesRemoved++;
+            }
+            
+            // Update client record with correct channel ID
+            if (client.channelId !== keepChannel.id) {
+              await updateClientChannel(client.id, keepChannel.id, client.clientCardMessageId || '');
+              channelsFixed++;
+              console.log(`✅ Updated ${client.name} to use channel ${keepChannel.id}`);
+            }
+          }
+        }
+
+        await interaction.editReply({
+          content: `✅ Cleanup complete! Removed ${duplicatesRemoved} duplicate channels and fixed ${channelsFixed} channel mappings.`
+        });
+        
+      } catch (error) {
+        console.error('❌ Channel cleanup failed:', error);
+        await interaction.editReply({
+          content: `❌ Failed to cleanup channels: ${error.message}`
         });
       }
     }
