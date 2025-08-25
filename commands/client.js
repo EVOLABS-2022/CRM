@@ -1,9 +1,23 @@
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const { createClient, getClients, updateClientChannel, updateClient } = require('../lib/sheetsDb');
 const { ensureClientCard } = require('../lib/clientCard');
 const { refreshAllBoards } = require('../lib/board');
 const { smartSync } = require('../lib/smartSync');
+
+// Generate 8-character auth code (mix of letters and numbers)
+function generateAuthCode() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  
+  for (let i = 0; i < 8; i++) {
+    const randomIndex = crypto.randomInt(0, characters.length);
+    result += characters[randomIndex];
+  }
+  
+  return result;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -100,10 +114,17 @@ module.exports = {
           counter++;
         }
 
+        // Generate unique auth code
+        let authCode;
+        do {
+          authCode = generateAuthCode();
+        } while (existingClients.some(c => c.authCode === authCode));
+
         const client = {
           id: uuidv4(),
           name,
           code,
+          authCode,
           contactName,
           contactMethod
         };
@@ -130,7 +151,7 @@ module.exports = {
         smartSync(interaction.client, interaction.guildId);
 
         await interaction.editReply({
-          content: `✅ Created client ${name} (Code: ${code}, ID: ${client.id})`
+          content: `✅ Created client ${name} (Code: ${code}, Auth: ${authCode}, ID: ${client.id})`
         });
         
       } catch (error) {
