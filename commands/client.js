@@ -319,11 +319,16 @@ module.exports = {
         
         // For each client, find their channels
         for (const client of clients) {
-          const expectedName = `🪪-${client.code.toLowerCase()}-${client.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+          const cleanCode = client.code.toLowerCase().trim().replace(/[^a-z0-9]+/g, '');
+          const cleanName = client.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+          const expectedName = `🪪-${cleanCode}-${cleanName}`;
           
-          // Find all channels matching this pattern
+          // Also check for old format with spaces/special chars
+          const oldName = `🪪-${client.code.toLowerCase()}-${cleanName}`;
+          
+          // Find all channels matching either pattern
           const matchingChannels = guild.channels.cache.filter(
-            c => c.name === expectedName && c.type === 0 // ChannelType.GuildText = 0
+            c => (c.name === expectedName || c.name === oldName) && c.type === 0 // ChannelType.GuildText = 0
           );
           
           if (matchingChannels.size > 1) {
