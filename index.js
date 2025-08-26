@@ -40,19 +40,21 @@ async function syncAll(client) {
       console.error('❌ Failed to sync client folders:', error);
     }
     
-    // Sync job folders in Google Drive
-    console.log('🔄 Syncing job folders...');
-    try {
-      await syncJobFolders(clients, jobs);
-    } catch (error) {
-      console.error('❌ Failed to sync job folders:', error);
-    }
-    
-    // Refresh all boards with latest data from Sheets
+    // Refresh all boards with latest data from Sheets (this creates job threads with codes)
     console.log('🔄 Refreshing boards...');
     await refreshAllClientPanels(client);
     await refreshAllBoards(client);
     await refreshInvoicesBoard(client, invoices, clients, jobs);
+    
+    // Sync job folders in Google Drive AFTER boards are refreshed (so job codes are available)
+    console.log('🔄 Syncing job folders...');
+    try {
+      // Get fresh job data with updated codes
+      const freshJobs = await getJobs();
+      await syncJobFolders(clients, freshJobs);
+    } catch (error) {
+      console.error('❌ Failed to sync job folders:', error);
+    }
     
     console.log('✅ Full sync complete');
   } catch (error) {
