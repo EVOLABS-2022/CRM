@@ -181,11 +181,11 @@ module.exports = {
           console.log('📁 Creating Drive folder for job:', job.title);
           const clientFolderId = await getClientFolderId(client.code);
           if (clientFolderId) {
-            const jobFolderId = await ensureJobFolder(clientFolderId, job.code, job.title);
+            const jobFolderId = await ensureJobFolder(clientFolderId, job.id, job.title);
             if (jobFolderId) {
-              console.log(`✅ Created/found job folder ${job.code} (ID: ${jobFolderId})`);
+              console.log(`✅ Created/found job folder ${job.id} (ID: ${jobFolderId})`);
             } else {
-              console.warn(`⚠️ Could not create/find job folder for ${job.code}`);
+              console.warn(`⚠️ Could not create/find job folder for ${job.id}`);
             }
           } else {
             console.warn(`⚠️ Client folder not found for ${client.code}, skipping job folder creation`);
