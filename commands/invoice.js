@@ -4,6 +4,7 @@ const { getClients, getJobs, getInvoices, createInvoice, updateInvoice } = requi
 const { generateInvoiceEmbed } = require('../utils/invoiceEmbed');
 const { refreshInvoicesBoard } = require('../utils/invoiceBoard');
 const { immediateSyncAndWait } = require('../lib/smartSync');
+const { getClientFolderId, CRM_FOLDER_ID } = require('../lib/driveManager');
 
 // Invoice numbers are now calculated dynamically from existing invoices
 
@@ -621,9 +622,22 @@ async function savePDFToDrive(invoiceId, pdfStream, auth, client) {
     
     const drive = google.drive({ version: 'v3', auth });
     
-    const folderId = '1Oa_DYQt7NZFlXdwurAT8LS0WUDkgg84g';
-    const fileName = `${client.name} - Invoice ${invoiceId}.pdf`;
+    // Try to get the client's specific folder, fallback to CRM folder
+    let folderId = CRM_FOLDER_ID; // Default fallback
     
+    if (client.code) {
+      const clientFolderId = await getClientFolderId(client.code);
+      if (clientFolderId) {
+        folderId = clientFolderId;
+        console.log(`📁 Using client folder ${client.code} for invoice PDF`);
+      } else {
+        console.warn(`⚠️ Client folder not found for ${client.code}, using CRM folder`);
+      }
+    } else {
+      console.warn(`⚠️ Client has no code, using CRM folder`);
+    }
+    
+    const fileName = `${client.name} - Invoice ${invoiceId}.pdf`;
     
     const fileMetadata = {
       name: fileName,
