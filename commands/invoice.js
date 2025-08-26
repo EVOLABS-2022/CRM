@@ -632,12 +632,12 @@ async function savePDFToDrive(invoiceId, pdfStream, auth, client, invoice) {
       const jobs = await getJobs();
       const job = jobs.find(j => j.id === invoice.jobId);
       
-      if (job && job.code) {
-        const jobFolderId = await getJobFolderId(client.code, job.code);
+      if (job && job.id) {
+        const jobFolderId = await getJobFolderId(client.code, job.id);
         if (jobFolderId) {
           folderId = jobFolderId;
-          folderLocation = `job folder ${job.code}`;
-          console.log(`📁 Using job folder ${job.code} for invoice PDF`);
+          folderLocation = `job folder ${job.id}`;
+          console.log(`📁 Using job folder ${job.id} for invoice PDF`);
         } else {
           // Fallback to client folder
           const clientFolderId = await getClientFolderId(client.code);
