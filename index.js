@@ -11,6 +11,7 @@ const { refreshAllBoards } = require('./lib/board');
 const { syncAllClientChannelsAndCards } = require('./lib/clientCard');
 const { initializeSheets, getClients, getJobs, getInvoices } = require('./lib/sheetsDb');
 const { refreshInvoicesBoard } = require('./utils/invoiceBoard');
+const { syncClientFolders } = require('./lib/driveManager');
 
 // === Main Sync Function ===
 async function syncAll(client) {
@@ -30,6 +31,10 @@ async function syncAll(client) {
     for (const [guildId] of client.guilds.cache) {
       await syncAllClientChannelsAndCards(client, guildId);
     }
+    
+    // Sync client folders in Google Drive
+    console.log('🔄 Syncing client folders...');
+    await syncClientFolders(clients);
     
     // Refresh all boards with latest data from Sheets
     console.log('🔄 Refreshing boards...');
