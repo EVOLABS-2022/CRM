@@ -5,6 +5,7 @@ const { createClient, getClients, updateClientChannel, updateClient } = require(
 const { ensureClientCard } = require('../lib/clientCard');
 const { refreshAllBoards } = require('../lib/board');
 const { smartSync } = require('../lib/smartSync');
+const { ensureClientFolder } = require('../lib/driveManager');
 
 // Generate 8-character auth code (mix of upper/lower letters and numbers)
 function generateAuthCode() {
@@ -142,6 +143,19 @@ module.exports = {
         // Save to Google Sheets
         console.log('💾 Saving client to Google Sheets:', client.name);
         await createClient(client);
+
+        // Create client folder in Google Drive
+        try {
+          console.log('📁 Creating Drive folder for client:', client.name);
+          const folderId = await ensureClientFolder(client.code, client.name);
+          if (folderId) {
+            console.log(`✅ Created/found client folder ${client.code} (ID: ${folderId})`);
+          } else {
+            console.warn(`⚠️ Could not create/find client folder for ${client.code}`);
+          }
+        } catch (error) {
+          console.error('❌ Failed to create client folder:', error);
+        }
 
         // Create client channel and card in Discord
         try {
