@@ -633,42 +633,42 @@ async function savePDFToDrive(invoiceId, pdfStream, auth, client, invoice) {
       const job = jobs.find(j => j.id === invoice.jobId);
       
       if (job && job.id) {
-        const jobFolderId = await getJobFolderId(client.code, job.id);
+        const jobFolderId = await getJobFolderId(client.code.trim(), job.id);
         if (jobFolderId) {
           folderId = jobFolderId;
           folderLocation = `job folder ${job.id}`;
           console.log(`📁 Using job folder ${job.id} for invoice PDF`);
         } else {
           // Fallback to client folder
-          const clientFolderId = await getClientFolderId(client.code);
+          const clientFolderId = await getClientFolderId(client.code.trim());
           if (clientFolderId) {
             folderId = clientFolderId;
-            folderLocation = `client folder ${client.code}`;
-            console.log(`📁 Job folder not found, using client folder ${client.code} for invoice PDF`);
+            folderLocation = `client folder ${client.code.trim()}`;
+            console.log(`📁 Job folder not found, using client folder ${client.code.trim()} for invoice PDF`);
           } else {
             console.warn(`⚠️ Neither job nor client folder found, using CRM folder`);
           }
         }
       } else {
         console.warn(`⚠️ Job not found or has no code, trying client folder`);
-        const clientFolderId = await getClientFolderId(client.code);
+        const clientFolderId = await getClientFolderId(client.code.trim());
         if (clientFolderId) {
           folderId = clientFolderId;
-          folderLocation = `client folder ${client.code}`;
-          console.log(`📁 Using client folder ${client.code} for invoice PDF`);
+          folderLocation = `client folder ${client.code.trim()}`;
+          console.log(`📁 Using client folder ${client.code.trim()} for invoice PDF`);
         } else {
           console.warn(`⚠️ Client folder not found, using CRM folder`);
         }
       }
     } else if (client.code) {
       // No job info, try client folder
-      const clientFolderId = await getClientFolderId(client.code);
+      const clientFolderId = await getClientFolderId(client.code.trim());
       if (clientFolderId) {
         folderId = clientFolderId;
-        folderLocation = `client folder ${client.code}`;
-        console.log(`📁 Using client folder ${client.code} for invoice PDF`);
+        folderLocation = `client folder ${client.code.trim()}`;
+        console.log(`📁 Using client folder ${client.code.trim()} for invoice PDF`);
       } else {
-        console.warn(`⚠️ Client folder not found for ${client.code}, using CRM folder`);
+        console.warn(`⚠️ Client folder not found for ${client.code.trim()}, using CRM folder`);
       }
     } else {
       console.warn(`⚠️ Client has no code, using CRM folder`);
