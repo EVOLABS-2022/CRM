@@ -7,9 +7,10 @@ const path = require('node:path');
 
 (async () => {
   try {
-    const { DISCORD_TOKEN, CLIENT_ID, GUILD_ID } = process.env;
-    if (!DISCORD_TOKEN || !CLIENT_ID || !GUILD_ID) {
-      throw new Error('Missing DISCORD_TOKEN, CLIENT_ID, or GUILD_ID in .env');
+    const { BOT_TOKEN, DISCORD_TOKEN, CLIENT_ID, GUILD_ID } = process.env;
+    const token = BOT_TOKEN || DISCORD_TOKEN;
+    if (!token || !CLIENT_ID || !GUILD_ID) {
+      throw new Error('Missing BOT_TOKEN/DISCORD_TOKEN, CLIENT_ID, or GUILD_ID in .env');
     }
 
     const commands = [];
@@ -24,7 +25,7 @@ const path = require('node:path');
       }
     }
 
-    const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+    const rest = new REST({ version: '10' }).setToken(token);
 
     // 1) Deploy to guild (instant updates)
     await rest.put(
