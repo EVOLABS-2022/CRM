@@ -5,6 +5,7 @@ const { refreshAllBoards } = require('../lib/board');
 const { ensureClientCard } = require('../lib/clientCard');
 const { ensureJobThread } = require('../lib/jobThreads');
 const { smartSync } = require('../lib/smartSync');
+const { getClientFolderId, ensureJobFolder } = require('../lib/driveManager');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -174,6 +175,24 @@ module.exports = {
         console.log('📝 Creating job in Google Sheets:', job);
         await createJob(job);
         console.log('💾 Job saved to Google Sheets');
+
+        // Create job folder in Google Drive
+        try {
+          console.log('📁 Creating Drive folder for job:', job.title);
+          const clientFolderId = await getClientFolderId(client.code);
+          if (clientFolderId) {
+            const jobFolderId = await ensureJobFolder(clientFolderId, job.code, job.title);
+            if (jobFolderId) {
+              console.log(`✅ Created/found job folder ${job.code} (ID: ${jobFolderId})`);
+            } else {
+              console.warn(`⚠️ Could not create/find job folder for ${job.code}`);
+            }
+          } else {
+            console.warn(`⚠️ Client folder not found for ${client.code}, skipping job folder creation`);
+          }
+        } catch (error) {
+          console.error('❌ Failed to create job folder:', error);
+        }
 
         // Update client card to show new job
         try {
