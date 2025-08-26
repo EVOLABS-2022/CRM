@@ -2,8 +2,9 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const { getClients, getJobs } = require('../lib/sheetsDb');
 const { getJobFolderId, getClientFolderId } = require('../lib/driveManager');
 const { google } = require('googleapis');
-const axios = require('axios');
-const path = require('path');
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -160,16 +161,11 @@ module.exports = {
       console.log(`📤 Uploading file ${attachment.name} to job ${job.id} for client ${client.code.trim()}`);
       
       // Download file from Discord
-      const response = await axios({
-        method: 'GET',
-        url: attachment.url,
-        responseType: 'stream',
-        timeout: 30000 // 30 second timeout
-      });
+      const fileStream = await downloadFileFromDiscord(attachment.url);
       
       // Upload to Google Drive
       const driveFileId = await uploadToGoogleDrive(
-        response.data,
+        fileStream,
         attachment.name,
         jobFolderId,
         attachment.contentType,
@@ -200,6 +196,36 @@ module.exports = {
     }
   }
 };
+
+/**
+ * Download a file from Discord CDN
+ * @param {string} url - Discord attachment URL
+ * @returns {Promise<Stream>} File stream
+ */
+async function downloadFileFromDiscord(url) {
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const client = urlObj.protocol === 'https:' ? https : http;
+    
+    const request = client.get(url, (response) => {
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download file: ${response.statusCode}`));
+        return;
+      }
+      
+      resolve(response);
+    });
+    
+    request.on('error', (error) => {
+      reject(new Error(`Download failed: ${error.message}`));
+    });
+    
+    request.setTimeout(30000, () => {
+      request.destroy();
+      reject(new Error('Download timeout'));
+    });
+  });
+}
 
 /**
  * Upload a file stream to Google Drive
