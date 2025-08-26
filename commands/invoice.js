@@ -4,7 +4,7 @@ const { getClients, getJobs, getInvoices, createInvoice, updateInvoice } = requi
 const { generateInvoiceEmbed } = require('../utils/invoiceEmbed');
 const { refreshInvoicesBoard } = require('../utils/invoiceBoard');
 const { immediateSyncAndWait } = require('../lib/smartSync');
-const { getClientFolderId, CRM_FOLDER_ID } = require('../lib/driveManager');
+const { getClientFolderId, getJobFolderId, CRM_FOLDER_ID } = require('../lib/driveManager');
 
 // Invoice numbers are now calculated dynamically from existing invoices
 
@@ -553,10 +553,10 @@ async function generateInvoiceForm(invoice, client, job) {
   console.log(`✅ Invoice #${invoice.id} data pushed to Invoice Form tab with ${lineItems.length} line items`);
   
   // Export Invoice Form tab as PDF
-  await exportInvoicePDF(invoice.id, api, client);
+  await exportInvoicePDF(invoice.id, api, client, invoice);
 }
 
-async function exportInvoicePDF(invoiceId, sheetsApi, client) {
+async function exportInvoicePDF(invoiceId, sheetsApi, client, invoice) {
   try {
     const SPREADSHEET_ID = process.env.GSHEETS_SPREADSHEET_ID;
     
@@ -607,7 +607,7 @@ async function exportInvoicePDF(invoiceId, sheetsApi, client) {
     });
     
     // Save to Google Drive folder
-    await savePDFToDrive(invoiceId, response.data, auth, client);
+    await savePDFToDrive(invoiceId, response.data, auth, client, invoice);
     
     console.log(`✅ Invoice #${invoiceId} exported as PDF`);
     
@@ -616,19 +616,56 @@ async function exportInvoicePDF(invoiceId, sheetsApi, client) {
   }
 }
 
-async function savePDFToDrive(invoiceId, pdfStream, auth, client) {
+async function savePDFToDrive(invoiceId, pdfStream, auth, client, invoice) {
   try {
     const { google } = require('googleapis');
     
     const drive = google.drive({ version: 'v3', auth });
     
-    // Try to get the client's specific folder, fallback to CRM folder
+    // Try to get the job's specific folder first, then client folder, then fallback to CRM folder
     let folderId = CRM_FOLDER_ID; // Default fallback
+    let folderLocation = "CRM folder";
     
-    if (client.code) {
+    if (client.code && invoice.jobId) {
+      // First try to get the job-specific folder
+      const { getJobs } = require('../lib/sheetsDb');
+      const jobs = await getJobs();
+      const job = jobs.find(j => j.id === invoice.jobId);
+      
+      if (job && job.code) {
+        const jobFolderId = await getJobFolderId(client.code, job.code);
+        if (jobFolderId) {
+          folderId = jobFolderId;
+          folderLocation = `job folder ${job.code}`;
+          console.log(`📁 Using job folder ${job.code} for invoice PDF`);
+        } else {
+          // Fallback to client folder
+          const clientFolderId = await getClientFolderId(client.code);
+          if (clientFolderId) {
+            folderId = clientFolderId;
+            folderLocation = `client folder ${client.code}`;
+            console.log(`📁 Job folder not found, using client folder ${client.code} for invoice PDF`);
+          } else {
+            console.warn(`⚠️ Neither job nor client folder found, using CRM folder`);
+          }
+        }
+      } else {
+        console.warn(`⚠️ Job not found or has no code, trying client folder`);
+        const clientFolderId = await getClientFolderId(client.code);
+        if (clientFolderId) {
+          folderId = clientFolderId;
+          folderLocation = `client folder ${client.code}`;
+          console.log(`📁 Using client folder ${client.code} for invoice PDF`);
+        } else {
+          console.warn(`⚠️ Client folder not found, using CRM folder`);
+        }
+      }
+    } else if (client.code) {
+      // No job info, try client folder
       const clientFolderId = await getClientFolderId(client.code);
       if (clientFolderId) {
         folderId = clientFolderId;
+        folderLocation = `client folder ${client.code}`;
         console.log(`📁 Using client folder ${client.code} for invoice PDF`);
       } else {
         console.warn(`⚠️ Client folder not found for ${client.code}, using CRM folder`);
@@ -655,7 +692,7 @@ async function savePDFToDrive(invoiceId, pdfStream, auth, client) {
       supportsAllDrives: true,
     });
     
-    console.log(`✅ PDF saved to Google Drive: ${fileName} (ID: ${file.data.id})`);
+    console.log(`✅ PDF saved to Google Drive in ${folderLocation}: ${fileName} (ID: ${file.data.id})`);
     
   } catch (error) {
     console.error('❌ Failed to save PDF to Drive:', error.message);
