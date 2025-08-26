@@ -179,7 +179,7 @@ module.exports = {
         // Create job folder in Google Drive
         try {
           console.log('📁 Creating Drive folder for job:', job.title);
-          const clientFolderId = await getClientFolderId(client.code);
+          const clientFolderId = await getClientFolderId(client.code.trim());
           if (clientFolderId) {
             const jobFolderId = await ensureJobFolder(clientFolderId, job.id, job.title);
             if (jobFolderId) {
