@@ -34,7 +34,11 @@ async function syncAll(client) {
     
     // Sync client folders in Google Drive
     console.log('🔄 Syncing client folders...');
-    await syncClientFolders(clients);
+    try {
+      await syncClientFolders(clients);
+    } catch (error) {
+      console.error('❌ Failed to sync client folders:', error);
+    }
     
     // Refresh all boards with latest data from Sheets
     console.log('🔄 Refreshing boards...');
