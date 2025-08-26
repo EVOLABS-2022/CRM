@@ -11,7 +11,7 @@ const { refreshAllBoards } = require('./lib/board');
 const { syncAllClientChannelsAndCards } = require('./lib/clientCard');
 const { initializeSheets, getClients, getJobs, getInvoices } = require('./lib/sheetsDb');
 const { refreshInvoicesBoard } = require('./utils/invoiceBoard');
-const { syncClientFolders } = require('./lib/driveManager');
+const { syncClientFolders, syncJobFolders } = require('./lib/driveManager');
 
 // === Main Sync Function ===
 async function syncAll(client) {
@@ -38,6 +38,14 @@ async function syncAll(client) {
       await syncClientFolders(clients);
     } catch (error) {
       console.error('❌ Failed to sync client folders:', error);
+    }
+    
+    // Sync job folders in Google Drive
+    console.log('🔄 Syncing job folders...');
+    try {
+      await syncJobFolders(clients, jobs);
+    } catch (error) {
+      console.error('❌ Failed to sync job folders:', error);
     }
     
     // Refresh all boards with latest data from Sheets
