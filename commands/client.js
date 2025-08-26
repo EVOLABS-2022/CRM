@@ -147,7 +147,7 @@ module.exports = {
         // Create client folder in Google Drive
         try {
           console.log('📁 Creating Drive folder for client:', client.name);
-          const folderId = await ensureClientFolder(client.code, client.name);
+          const folderId = await ensureClientFolder(client.code.trim(), client.name);
           if (folderId) {
             console.log(`✅ Created/found client folder ${client.code} (ID: ${folderId})`);
           } else {
