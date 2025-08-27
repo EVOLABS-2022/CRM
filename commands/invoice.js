@@ -203,19 +203,19 @@ module.exports = {
   },
 
   async execute(interaction) {
+    // Defer reply immediately to prevent timeout
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    
     // Check if user has Office role for invoice access
     if (!interaction.member.roles.cache.has('1408987391162585138')) {
-      return interaction.reply({ 
-        content: '❌ You need the Office role to access invoice commands.',
-        ephemeral: true 
+      return interaction.editReply({ 
+        content: '❌ You need the Office role to access invoice commands.'
       });
     }
     
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'create') {
-      // Defer reply to prevent timeout
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       
       const clientCode = interaction.options.getString('client');
       const jobId = interaction.options.getString('job');
@@ -429,7 +429,6 @@ module.exports = {
     }
 
     if (sub === 'generate') {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       
       const invoiceId = interaction.options.getString('invoice');
 
