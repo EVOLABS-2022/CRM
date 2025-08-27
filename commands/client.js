@@ -6,7 +6,7 @@ const { ensureClientCard } = require('../lib/clientCard');
 const { refreshAllBoards } = require('../lib/board');
 const { refreshAllAdminBoards } = require('../utils/adminBoard');
 const { ensureClientFolder } = require('../lib/driveManager');
-const { hasPermission, PERMISSIONS } = require('../config/roles');
+const { canSeeClientJobData, PERMISSIONS } = require('../config/roles');
 
 // Generate 8-character auth code (mix of upper/lower letters and numbers)
 function generateAuthCode() {
@@ -109,8 +109,8 @@ module.exports = {
       // Defer reply to prevent timeout during processing
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       
-      // Check if user has permission to create clients (requires DATA_ONLY or higher)
-      if (!hasPermission(interaction.member, PERMISSIONS.DATA_ONLY)) {
+      // Check if user has permission to create clients (requires Team Lead or Office)
+      if (!canSeeClientJobData(interaction.member)) {
         return interaction.editReply({ 
           content: '❌ You need Team Lead permissions or higher to create clients.'
         });
