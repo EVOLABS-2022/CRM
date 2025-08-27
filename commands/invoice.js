@@ -3,7 +3,7 @@ const chrono = require('chrono-node');
 const { getClients, getJobs, getInvoices, createInvoice, updateInvoice } = require('../lib/sheetsDb');
 const { generateInvoiceEmbed } = require('../utils/invoiceEmbed');
 const { refreshInvoicesBoard } = require('../utils/invoiceBoard');
-const { immediateSyncAndWait } = require('../lib/smartSync');
+const { refreshAllAdminBoards } = require('../utils/adminBoard');
 const { getClientFolderId, getJobFolderId, CRM_FOLDER_ID } = require('../lib/driveManager');
 
 // Invoice numbers are now calculated dynamically from existing invoices
@@ -309,8 +309,11 @@ module.exports = {
           const allClients = await getClients();
           const allJobs = await getJobs();
           const allInvoices = await getInvoices();
-          // Use immediate sync for invoice operations (critical for PDF generation)
-          await immediateSyncAndWait(interaction.client, interaction.guildId);
+          // Update boards immediately and wait for completion (critical for PDF generation)
+          await Promise.all([
+            refreshInvoicesBoard(interaction.client, allInvoices, allClients, allJobs),
+            refreshAllAdminBoards(interaction.client)
+          ]);
           console.log('✅ Invoice board refreshed');
         } catch (error) {
           console.error('❌ Failed to refresh invoice board:', error);
