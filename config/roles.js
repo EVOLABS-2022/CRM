@@ -13,29 +13,29 @@ const ROLES = {
 
 // Permission levels
 const PERMISSIONS = {
-  // Full access to everything including financials
-  FULL: 'full',
+  // Full access to everything including financials (Office role)
+  OFFICE: 'office',
   
-  // Can see all data except financials
-  DATA_ONLY: 'data_only',
+  // Can see client names, descriptions, job details - NO financials (Team Lead)
+  TEAM_LEAD: 'team_lead',
   
-  // Only own tasks
-  OWN_TASKS: 'own_tasks'
+  // Can only access tasks channel with filtered task views (Staff)  
+  TASKS_ONLY: 'tasks_only'
 };
 
 // Map roles to permissions
 const ROLE_PERMISSIONS = {
-  [ROLES.ADMIN]: PERMISSIONS.FULL,
-  [ROLES.TEAM_LEAD]: PERMISSIONS.DATA_ONLY,
-  [ROLES.STAFF]: PERMISSIONS.OWN_TASKS
+  [ROLES.ADMIN]: PERMISSIONS.OFFICE,
+  [ROLES.TEAM_LEAD]: PERMISSIONS.TEAM_LEAD,
+  [ROLES.STAFF]: PERMISSIONS.TASKS_ONLY
 };
 
 // Helper function to check user permissions
 function getUserPermission(member) {
   // Check roles in order of highest to lowest permission
-  if (member.roles.cache.has(ROLES.ADMIN)) return PERMISSIONS.FULL;
-  if (member.roles.cache.has(ROLES.TEAM_LEAD)) return PERMISSIONS.DATA_ONLY;
-  if (member.roles.cache.has(ROLES.STAFF)) return PERMISSIONS.OWN_TASKS;
+  if (member.roles.cache.has(ROLES.ADMIN)) return PERMISSIONS.OFFICE;
+  if (member.roles.cache.has(ROLES.TEAM_LEAD)) return PERMISSIONS.TEAM_LEAD;
+  if (member.roles.cache.has(ROLES.STAFF)) return PERMISSIONS.TASKS_ONLY;
   
   return null; // No access
 }
@@ -47,9 +47,9 @@ function hasPermission(member, requiredPermission) {
   
   // Permission hierarchy
   const hierarchy = {
-    [PERMISSIONS.FULL]: 3,
-    [PERMISSIONS.DATA_ONLY]: 2,
-    [PERMISSIONS.OWN_TASKS]: 1
+    [PERMISSIONS.OFFICE]: 3,
+    [PERMISSIONS.TEAM_LEAD]: 2,
+    [PERMISSIONS.TASKS_ONLY]: 1
   };
   
   const requiredLevel = hierarchy[requiredPermission] || 0;
@@ -60,7 +60,18 @@ function hasPermission(member, requiredPermission) {
 
 // Check if user can see financial data
 function canSeeCosts(member) {
-  return getUserPermission(member) === PERMISSIONS.FULL;
+  return getUserPermission(member) === PERMISSIONS.OFFICE;
+}
+
+// Check if user can see client/job management data
+function canSeeClientJobData(member) {
+  const permission = getUserPermission(member);
+  return permission === PERMISSIONS.OFFICE || permission === PERMISSIONS.TEAM_LEAD;
+}
+
+// Check if user should only see tasks
+function isTasksOnlyUser(member) {
+  return getUserPermission(member) === PERMISSIONS.TASKS_ONLY;
 }
 
 module.exports = {
@@ -69,5 +80,7 @@ module.exports = {
   ROLE_PERMISSIONS,
   getUserPermission,
   hasPermission,
-  canSeeCosts
+  canSeeCosts,
+  canSeeClientJobData,
+  isTasksOnlyUser
 };
