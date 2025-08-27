@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { createClient, getClients, updateClientChannel, updateClient } = require('../lib/sheetsDb');
 const { ensureClientCard } = require('../lib/clientCard');
 const { refreshAllBoards } = require('../lib/board');
-const { smartSync } = require('../lib/smartSync');
+const { refreshAllAdminBoards } = require('../utils/adminBoard');
 const { ensureClientFolder } = require('../lib/driveManager');
 
 // Generate 8-character auth code (mix of upper/lower letters and numbers)
@@ -171,8 +171,18 @@ module.exports = {
           console.error('❌ Failed to create client channel:', error);
         }
 
-        // Smart sync - instant response, background sync
-        smartSync(interaction.client, interaction.guildId);
+        // Update relevant boards with fresh Sheets data
+        try {
+          console.log('🔄 Updating boards after client creation...');
+          await Promise.all([
+            refreshAllBoards(interaction.client),
+            refreshAllAdminBoards(interaction.client)
+          ]);
+          console.log('✅ Boards updated successfully');
+        } catch (error) {
+          console.error('❌ Failed to update boards:', error);
+          // Continue anyway - boards will be updated by scheduler
+        }
 
         await interaction.editReply({
           content: `✅ Created client ${name} (Code: ${code}, Auth: ${authCode}, ID: ${client.id})`
