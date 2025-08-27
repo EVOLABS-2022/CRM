@@ -1,9 +1,8 @@
 // commands/sync.js
 const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
-const { getClients, getJobs, getInvoices, initializeSheets, cleanupTasksForClosedJobs } = require('../lib/sheetsDb');
+const { getClients, getJobs, getInvoices, initializeSheets } = require('../lib/sheetsDb');
 const { refreshAllClientPanels } = require('../lib/clientPanel');
 const { refreshAllBoards } = require('../lib/board');
-const { syncAllClientChannelsAndCards } = require('../lib/clientCard');
 const { refreshInvoicesBoard } = require('../utils/invoiceBoard');
 const { refreshAllTaskBoards } = require('../utils/taskBoard');
 const { refreshAllAdminBoards } = require('../utils/adminBoard');
@@ -11,7 +10,7 @@ const { refreshAllAdminBoards } = require('../utils/adminBoard');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('sync')
-    .setDescription('Force a full refresh (client cards, client board, job board)'),
+    .setDescription('Refresh all boards and panels with latest Google Sheets data'),
   
   async execute(interaction) {
     console.log('🔧 Manual /sync command executed by user');
@@ -31,36 +30,14 @@ module.exports = {
       
       console.log(`📋 Loaded from Sheets: ${clients.length} clients, ${jobs.length} jobs, ${invoices.length} invoices`);
       
-      // Update progress: Data loaded
-      const progressEmbed1 = new EmbedBuilder()
-        .setTitle('🔄 Sync in Progress...')
-        .setDescription('Data loaded from Google Sheets. Cleaning up tasks...')
-        .setColor(0x3498db);
-      await interaction.editReply({ embeds: [progressEmbed1] });
-      
-      // Clean up orphaned tasks from closed jobs
-      await cleanupTasksForClosedJobs();
-      
-      // Update progress: Channel sync
-      const progressEmbed2 = new EmbedBuilder()
-        .setTitle('🔄 Sync in Progress...')
-        .setDescription('Syncing client channels and cards...')
-        .setColor(0x3498db);
-      await interaction.editReply({ embeds: [progressEmbed2] });
-      
-      // Ensure every client has a channel + card first
-      console.log('🔄 Starting client channel sync...');
-      await syncAllClientChannelsAndCards(interaction.client, interaction.guildId);
-      console.log('✅ Client channel sync complete');
-      
       // Update progress: Board refresh
-      const progressEmbed3 = new EmbedBuilder()
+      const progressEmbed = new EmbedBuilder()
         .setTitle('🔄 Sync in Progress...')
-        .setDescription('Refreshing all boards and panels...')
+        .setDescription('Refreshing all boards and panels from Google Sheets...')
         .setColor(0x3498db);
-      await interaction.editReply({ embeds: [progressEmbed3] });
+      await interaction.editReply({ embeds: [progressEmbed] });
       
-      // Then refresh boards with Sheets data in parallel where possible
+      // Refresh all boards in parallel with fresh Sheets data
       await Promise.all([
         refreshAllClientPanels(interaction.client),
         refreshAllBoards(interaction.client),
@@ -73,7 +50,7 @@ module.exports = {
 
       const embed = new EmbedBuilder()
         .setTitle('✅ Sync Complete')
-        .setDescription('Client cards, boards refreshed from Google Sheets.')
+        .setDescription('All boards and panels refreshed with latest Google Sheets data.')
         .addFields(
           { name: 'Clients', value: `${clients.length}`, inline: true },
           { name: 'Jobs', value: `${jobs.length}`, inline: true },
