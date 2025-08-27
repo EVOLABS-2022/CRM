@@ -6,6 +6,7 @@ const { ensureClientCard } = require('../lib/clientCard');
 const { refreshAllBoards } = require('../lib/board');
 const { refreshAllAdminBoards } = require('../utils/adminBoard');
 const { ensureClientFolder } = require('../lib/driveManager');
+const { hasPermission, PERMISSIONS } = require('../config/roles');
 
 // Generate 8-character auth code (mix of upper/lower letters and numbers)
 function generateAuthCode() {
@@ -107,6 +108,13 @@ module.exports = {
     if (sub === 'create') {
       // Defer reply to prevent timeout during processing
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      
+      // Check if user has permission to create clients (requires DATA_ONLY or higher)
+      if (!hasPermission(interaction.member, PERMISSIONS.DATA_ONLY)) {
+        return interaction.editReply({ 
+          content: '❌ You need Team Lead permissions or higher to create clients.'
+        });
+      }
       
       const name = interaction.options.getString('name');
       const contactName = interaction.options.getString('contact_name');
