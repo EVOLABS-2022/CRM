@@ -2,9 +2,9 @@ const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const chrono = require('chrono-node');
 const { getClients, getJobs, createJob, updateJobThread, updateJob } = require('../lib/sheetsDb');
 const { refreshAllBoards } = require('../lib/board');
+const { refreshAllAdminBoards } = require('../utils/adminBoard');
 const { ensureClientCard } = require('../lib/clientCard');
 const { ensureJobThread } = require('../lib/jobThreads');
-const { smartSync } = require('../lib/smartSync');
 const { getClientFolderId, ensureJobFolder } = require('../lib/driveManager');
 
 module.exports = {
@@ -210,8 +210,18 @@ module.exports = {
           console.error('Failed to update client card:', error);
         }
 
-        // Smart sync - instant response, background sync
-        smartSync(interaction.client, interaction.guildId);
+        // Update relevant boards with fresh Sheets data
+        try {
+          console.log('🔄 Updating boards after job creation...');
+          await Promise.all([
+            refreshAllBoards(interaction.client),
+            refreshAllAdminBoards(interaction.client)
+          ]);
+          console.log('✅ Boards updated successfully');
+        } catch (error) {
+          console.error('❌ Failed to update boards:', error);
+          // Continue anyway - boards will be updated by scheduler
+        }
 
         console.log('✅ Job creation complete, sending reply...');
         await interaction.editReply({
@@ -299,7 +309,13 @@ module.exports = {
               }
             }
           }
-          smartSync(interaction.client, interaction.guildId);
+          
+          // Update relevant boards with fresh Sheets data
+          await Promise.all([
+            refreshAllBoards(interaction.client),
+            refreshAllAdminBoards(interaction.client)
+          ]);
+          
           console.log('✅ Client card and boards refreshed');
         } catch (error) {
           console.error('❌ Failed to refresh client card/job thread/boards:', error);
