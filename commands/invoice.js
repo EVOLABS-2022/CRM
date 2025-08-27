@@ -5,6 +5,7 @@ const { generateInvoiceEmbed } = require('../utils/invoiceEmbed');
 const { refreshInvoicesBoard } = require('../utils/invoiceBoard');
 const { refreshAllAdminBoards } = require('../utils/adminBoard');
 const { getClientFolderId, getJobFolderId, CRM_FOLDER_ID } = require('../lib/driveManager');
+const { hasPermission, canSeeCosts, PERMISSIONS } = require('../config/roles');
 
 // Invoice numbers are now calculated dynamically from existing invoices
 
@@ -203,19 +204,19 @@ module.exports = {
   },
 
   async execute(interaction) {
-    // Defer reply immediately to prevent timeout
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    
-    // Check if user has Office role for invoice access
-    if (!interaction.member.roles.cache.has('1408987391162585138')) {
-      return interaction.editReply({ 
-        content: '❌ You need the Office role to access invoice commands.'
+    // Check if user can see financial data (invoices require FULL permission)
+    if (!canSeeCosts(interaction.member)) {
+      return interaction.reply({ 
+        content: '❌ You need financial access permissions to manage invoices.',
+        flags: MessageFlags.Ephemeral
       });
     }
     
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'create') {
+      // Defer reply for create (needs processing time)
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       
       const clientCode = interaction.options.getString('client');
       const jobId = interaction.options.getString('job');
@@ -429,6 +430,8 @@ module.exports = {
     }
 
     if (sub === 'generate') {
+      // Defer reply for generate (needs processing time)
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       
       const invoiceId = interaction.options.getString('invoice');
 
