@@ -6,61 +6,9 @@ const { Client, GatewayIntentBits, Collection, Events, SlashCommandBuilder, Mess
 require('dotenv').config();
 
 // Using Google Sheets as primary database - no more local JSON files
-const { refreshAllClientPanels } = require('./lib/clientPanel');
-const { refreshAllBoards } = require('./lib/board');
-const { syncAllClientChannelsAndCards } = require('./lib/clientCard');
 const { initializeSheets, getClients, getJobs, getInvoices } = require('./lib/sheetsDb');
-const { refreshInvoicesBoard } = require('./utils/invoiceBoard');
-const { syncClientFolders, syncJobFolders } = require('./lib/driveManager');
-
-// === Main Sync Function ===
-async function syncAll(client) {
-  console.log('🔄 Full sync started...');
-  
-  try {
-    // Initialize Google Sheets if needed
-    await initializeSheets();
-    
-    // Get fresh data from Google Sheets
-    const clients = await getClients();
-    const jobs = await getJobs();
-    const invoices = await getInvoices();
-    
-    // Sync client channels first
-    console.log('🔄 Syncing client channels...');
-    for (const [guildId] of client.guilds.cache) {
-      await syncAllClientChannelsAndCards(client, guildId);
-    }
-    
-    // Sync client folders in Google Drive
-    console.log('🔄 Syncing client folders...');
-    try {
-      await syncClientFolders(clients);
-    } catch (error) {
-      console.error('❌ Failed to sync client folders:', error);
-    }
-    
-    // Refresh all boards with latest data from Sheets (this creates job threads with codes)
-    console.log('🔄 Refreshing boards...');
-    await refreshAllClientPanels(client);
-    await refreshAllBoards(client);
-    await refreshInvoicesBoard(client, invoices, clients, jobs);
-    
-    // Sync job folders in Google Drive AFTER boards are refreshed (so job codes are available)
-    console.log('🔄 Syncing job folders...');
-    try {
-      // Get fresh job data with updated codes
-      const freshJobs = await getJobs();
-      await syncJobFolders(clients, freshJobs);
-    } catch (error) {
-      console.error('❌ Failed to sync job folders:', error);
-    }
-    
-    console.log('✅ Full sync complete');
-  } catch (error) {
-    console.error('❌ Sync failed:', error);
-  }
-}
+const { repairInfrastructure } = require('./lib/infrastructureRepair');
+const { startScheduler } = require('./lib/scheduler');
 
 // === Discord Client ===
 const client = new Client({
@@ -268,17 +216,19 @@ client.on(Events.InteractionCreate, async interaction => {
   }
 });
 
-// === Auto-Sync Timer ===
+// === Bot Startup ===
 client.once(Events.ClientReady, async c => {
   console.log(`✅ Logged in as ${c.user.tag}`);
-
-  // Kick off first sync immediately
-  await syncAll(client);
-
-  // Auto-sync every 60 minutes
-  setInterval(async () => {
-    await syncAll(client);
-  }, 60 * 60 * 1000);
+  
+  // Repair missing infrastructure first
+  console.log('🔧 Starting infrastructure repair...');
+  for (const [guildId] of client.guilds.cache) {
+    await repairInfrastructure(client, guildId);
+  }
+  
+  // Start scheduled sync (runs every 10 minutes + immediately)
+  console.log('🕒 Starting scheduled sync...');
+  startScheduler(client);
 });
 
 client.login(process.env.BOT_TOKEN);
