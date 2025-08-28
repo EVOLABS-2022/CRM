@@ -1,3 +1,4 @@
+// commands/job.js
 const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const chrono = require('chrono-node');
 const { getClients, getJobs, createJob, updateJobThread, updateJob } = require('../lib/sheetsDb');
@@ -6,6 +7,7 @@ const { refreshAllAdminBoards } = require('../utils/adminBoard');
 const { ensureClientCard } = require('../lib/clientCard');
 const { ensureJobThread } = require('../lib/jobThreads');
 const { getClientFolderId, ensureJobFolder } = require('../lib/driveManager');
+const { setJobComplete } = require('../lib/jobsComplete');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -66,72 +68,60 @@ module.exports = {
         .addUserOption(opt =>
           opt.setName('assignee').setDescription('Assign job to user')
         )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('complete')
+        .setDescription('Mark a job Complete (updates Sheet and hides from boards)')
+        .addStringOption(opt =>
+          opt.setName('id').setDescription('Job ID (e.g., NEO-001)').setRequired(true).setAutocomplete(true)
+        )
     ),
 
   async autocomplete(interaction) {
     try {
       const focused = interaction.options.getFocused(true);
-      
-      // Handle client field autocomplete
+
+      // client code for /job create
       if (focused.name === 'client') {
-      
-      const clients = await getClients();
+        const clients = await getClients();
+        if (!clients?.length) return await interaction.respond([]);
 
-      // Debug logging
-      console.log('Job autocomplete - Focused field:', focused.name, 'Value:', `"${focused.value}"`, 'Type:', typeof focused.value);
-      console.log('Number of clients from Sheets:', clients.length);
-
-      // If no clients exist, return empty array
-      if (clients.length === 0) {
-        console.log('No clients found in Sheets');
-        return await interaction.respond([]);
+        const valid = clients.filter(c => c.code);
+        const choices = valid.map(c => ({ name: `${c.code} - ${c.name}`, value: c.code }));
+        const filtered = (!focused.value || focused.value === '')
+          ? choices
+          : choices.filter(c => c.name.toLowerCase().includes(focused.value.toLowerCase()));
+        return await interaction.respond(filtered.slice(0, 25));
       }
 
-      // Filter clients that have codes
-      const validClients = clients.filter(c => c.code);
-      console.log('Valid clients with codes:', validClients.length);
-      
-      // If no valid clients, return empty
-      if (validClients.length === 0) {
-        console.log('No valid clients with codes found');
-        return await interaction.respond([]);
-      }
-      
-      // Always show all clients, just filter if text is typed
-      const choices = validClients.map(c => ({
-        name: `${c.code} - ${c.name}`,
-        value: c.code
-      }));
-
-      // Filter only if user has typed something
-      const filtered = (!focused.value || focused.value === '')
-        ? choices
-        : choices.filter(c => c.name.toLowerCase().includes(focused.value.toLowerCase()));
-
-      console.log('Returning choices:', filtered.length);
-      await interaction.respond(filtered.slice(0, 25));
-      }
-      
-      // Handle job field autocomplete
+      // job id for /job edit
       if (focused.name === 'job') {
         const jobs = await getJobs();
         const choices = jobs
-          .filter(j => j.status !== 'completed' && j.status !== 'closed')
-          .map(j => ({
-            name: `${j.id} - ${j.title}`,
-            value: j.id
-          }))
-          .filter(choice => 
-            !focused.value || 
-            choice.name.toLowerCase().includes(focused.value.toLowerCase())
-          )
+          .filter(j => j.status !== 'completed' && j.status !== 'closed') // treat completed/closed as non-edit targets
+          .map(j => ({ name: `${j.id} - ${j.title}`, value: j.id }))
+          .filter(choice => !focused.value || choice.name.toLowerCase().includes(focused.value.toLowerCase()))
           .slice(0, 25);
-        
-        await interaction.respond(choices);
+        return await interaction.respond(choices);
       }
+
+      // job id for /job complete
+      if (focused.name === 'id') {
+        const jobs = await getJobs();
+        const choices = jobs
+          .filter(j => j.status !== 'completed' && j.status !== 'closed') // only open-ish jobs
+          .map(j => ({ name: `${j.id} - ${j.title}`, value: j.id }))
+          .filter(choice => !focused.value || choice.name.toLowerCase().includes(focused.value.toLowerCase()))
+          .slice(0, 25);
+        return await interaction.respond(choices);
+      }
+
+      // default
+      return await interaction.respond([]);
     } catch (error) {
       console.error('Job autocomplete error:', error);
-      await interaction.respond([]);
+      try { await interaction.respond([]); } catch {}
     }
   },
 
@@ -139,27 +129,23 @@ module.exports = {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'create') {
-      // Defer reply to prevent timeout during processing
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      
+
       console.log('🔧 Starting job creation...');
       const clientCode = interaction.options.getString('client');
       const title = interaction.options.getString('title');
       console.log('Job details:', { clientCode, title });
 
       try {
-        // Get clients and jobs from Sheets
         const clients = await getClients();
         const existingJobs = await getJobs();
 
         const client = clients.find(c => c.code === clientCode);
         if (!client) {
-          return await interaction.editReply({
-            content: `❌ Client with code ${clientCode} not found.`
-          });
+          return await interaction.editReply({ content: `❌ Client with code ${clientCode} not found.` });
         }
 
-        // Sequential job number for this client
+        // sequential job number for this client
         const clientJobs = existingJobs.filter(j => j.clientCode === clientCode);
         const number = String(clientJobs.length + 1).padStart(3, '0');
         const jobId = `${clientCode}-${number}`;
@@ -176,17 +162,14 @@ module.exports = {
         await createJob(job);
         console.log('💾 Job saved to Google Sheets');
 
-        // Create job folder in Google Drive
+        // Drive folder
         try {
           console.log('📁 Creating Drive folder for job:', job.title);
           const clientFolderId = await getClientFolderId(client.code.trim());
           if (clientFolderId) {
             const jobFolderId = await ensureJobFolder(clientFolderId, job.id, job.title);
-            if (jobFolderId) {
-              console.log(`✅ Created/found job folder ${job.id} (ID: ${jobFolderId})`);
-            } else {
-              console.warn(`⚠️ Could not create/find job folder for ${job.id}`);
-            }
+            if (jobFolderId) console.log(`✅ Created/found job folder ${job.id} (ID: ${jobFolderId})`);
+            else console.warn(`⚠️ Could not create/find job folder for ${job.id}`);
           } else {
             console.warn(`⚠️ Client folder not found for ${client.code}, skipping job folder creation`);
           }
@@ -194,7 +177,7 @@ module.exports = {
           console.error('❌ Failed to create job folder:', error);
         }
 
-        // Update client card to show new job
+        // client card (twice previously; keep single call)
         try {
           await ensureClientCard(interaction.client, interaction.guildId, client);
           console.log('✅ Client card updated with new job');
@@ -202,15 +185,7 @@ module.exports = {
           console.error('Failed to update client card:', error);
         }
 
-        // Update client card immediately, then full sync
-        try {
-          await ensureClientCard(interaction.client, interaction.guildId, client);
-          console.log('✅ Client card updated with new job');
-        } catch (error) {
-          console.error('Failed to update client card:', error);
-        }
-
-        // Update relevant boards with fresh Sheets data
+        // boards
         try {
           console.log('🔄 Updating boards after job creation...');
           await Promise.all([
@@ -220,25 +195,20 @@ module.exports = {
           console.log('✅ Boards updated successfully');
         } catch (error) {
           console.error('❌ Failed to update boards:', error);
-          // Continue anyway - boards will be updated by scheduler
         }
 
         console.log('✅ Job creation complete, sending reply...');
-        await interaction.editReply({
-          content: `✅ Created job ${title} (${jobId}) for ${client.name}`
-        });
-        
+        await interaction.editReply({ content: `✅ Created job ${title} (${jobId}) for ${client.name}` });
       } catch (error) {
         console.error('❌ Job creation failed:', error);
-        await interaction.editReply({
-          content: `❌ Failed to create job: ${error.message}`
-        });
+        await interaction.editReply({ content: `❌ Failed to create job: ${error.message}` });
       }
+      return;
     }
 
     if (sub === 'edit') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      
+
       const jobId = interaction.options.getString('job');
       const newTitle = interaction.options.getString('title');
       const newDescription = interaction.options.getString('description');
@@ -250,17 +220,13 @@ module.exports = {
       const newAssignee = interaction.options.getUser('assignee');
 
       try {
-        // Check if job exists
         const jobs = await getJobs();
         const job = jobs.find(j => j.id === jobId);
-        
         if (!job) {
-          return await interaction.editReply({
-            content: '❌ Job not found.'
-          });
+          return await interaction.editReply({ content: '❌ Job not found.' });
         }
 
-        // Parse deadline if provided
+        // parse deadline
         let parsedDeadline = null;
         if (newDeadline) {
           const parsed = chrono.parseDate(newDeadline);
@@ -269,11 +235,9 @@ module.exports = {
               content: '❌ Could not understand the deadline format. Try "next Friday", "in 2 weeks", "Dec 15", etc.'
             });
           }
-          // Format as YYYY-MM-DD for storage (using UTC date for global team consistency)
-          parsedDeadline = parsed.toISOString().split('T')[0];
+          parsedDeadline = parsed.toISOString().split('T')[0]; // YYYY-MM-DD UTC
         }
 
-        // Build updates object
         const updates = {};
         if (newTitle) updates.title = newTitle;
         if (newDescription !== null) updates.description = newDescription;
@@ -285,23 +249,20 @@ module.exports = {
         if (newAssignee) updates.assigneeId = newAssignee.id;
 
         if (Object.keys(updates).length === 0) {
-          return await interaction.editReply({
-            content: '❌ No changes provided. Please specify at least one field to update.'
-          });
+          return await interaction.editReply({ content: '❌ No changes provided. Please specify at least one field to update.' });
         }
 
-        // Update job in Google Sheets
+        // update sheet
         console.log('📝 Updating job in Google Sheets:', job.title);
         const updatedJob = await updateJob(jobId, updates);
 
-        // Refresh client card, job thread, and boards
+        // refresh client card + job thread + boards
         try {
           const clients = await getClients();
           const client = clients.find(c => c.id === job.clientId);
           if (client) {
             await ensureClientCard(interaction.client, interaction.guildId, client);
-            
-            // Update job thread card with latest job data
+
             if (client.channelId) {
               const channel = await interaction.client.channels.fetch(client.channelId).catch(() => null);
               if (channel) {
@@ -309,13 +270,10 @@ module.exports = {
               }
             }
           }
-          
-          // Update relevant boards with fresh Sheets data
           await Promise.all([
             refreshAllBoards(interaction.client),
             refreshAllAdminBoards(interaction.client)
           ]);
-          
           console.log('✅ Client card and boards refreshed');
         } catch (error) {
           console.error('❌ Failed to refresh client card/job thread/boards:', error);
@@ -323,27 +281,57 @@ module.exports = {
 
         const changedFields = Object.keys(updates).map(key => {
           const oldValue = job[key] || 'empty';
-          let newValue = updates[key];
-          let displayValue = newValue;
-          
-          // Show original natural language for deadline
+          let displayValue = updates[key];
           if (key === 'deadline' && newDeadline) {
-            displayValue = `${newValue} UTC (from "${newDeadline}")`;
+            displayValue = `${updates[key]} UTC (from "${newDeadline}")`;
           }
-          
           return `${key}: ${oldValue} → ${displayValue}`;
         }).join('\n');
 
         await interaction.editReply({
           content: `✅ Updated job ${updatedJob.title} (${updatedJob.id})\n\`\`\`\n${changedFields}\n\`\`\``
         });
-        
       } catch (error) {
         console.error('❌ Job edit failed:', error);
-        await interaction.editReply({
-          content: `❌ Failed to edit job: ${error.message}`
-        });
+        await interaction.editReply({ content: `❌ Failed to edit job: ${error.message}` });
       }
+      return;
+    }
+
+    if (sub === 'complete') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const jobId = interaction.options.getString('id', true);
+
+      try {
+        // capture client before we mutate
+        const jobsBefore = await getJobs();
+        const job = jobsBefore.find(j => j.id === jobId);
+
+        const { rowIndex } = await setJobComplete(jobId);
+
+        // refresh boards & client card
+        try {
+          if (job?.clientId) {
+            const clients = await getClients();
+            const client = clients.find(c => c.id === job.clientId);
+            if (client) {
+              await ensureClientCard(interaction.client, interaction.guildId, client);
+            }
+          }
+          await Promise.all([
+            refreshAllBoards(interaction.client),
+            refreshAllAdminBoards(interaction.client)
+          ]);
+        } catch (e) {
+          console.error('Board refresh after complete failed:', e);
+        }
+
+        await interaction.editReply(`✅ Marked **${jobId}** Complete (Jobs row ${rowIndex}). It’s now hidden from boards/cards and no longer counts as open.`);
+      } catch (err) {
+        const msg = err?.message || String(err);
+        await interaction.editReply(`❌ Couldn’t complete **${jobId}**: ${msg}`);
+      }
+      return;
     }
   }
 };
