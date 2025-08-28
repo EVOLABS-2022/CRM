@@ -1,5 +1,5 @@
 // commands/job.js
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const chrono = require('chrono-node');
 const { getClients, getJobs, createJob, updateJobThread, updateJob } = require('../lib/sheetsDb');
 const { refreshAllBoards } = require('../lib/board');
@@ -129,7 +129,7 @@ module.exports = {
     const sub = interaction.options.getSubcommand();
 
     if (sub === 'create') {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await interaction.deferReply({ ephemeral: true });
 
       console.log('🔧 Starting job creation...');
       const clientCode = interaction.options.getString('client');
@@ -207,7 +207,7 @@ module.exports = {
     }
 
     if (sub === 'edit') {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await interaction.deferReply({ ephemeral: true });
 
       const jobId = interaction.options.getString('job');
       const newTitle = interaction.options.getString('title');
@@ -299,8 +299,9 @@ module.exports = {
     }
 
     if (sub === 'complete') {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await interaction.deferReply({ ephemeral: true });
       const jobId = interaction.options.getString('id', true);
+      console.log(`[job.complete] invoked for ${jobId}`);
 
       try {
         // capture client before we mutate
