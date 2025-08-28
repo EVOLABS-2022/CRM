@@ -299,8 +299,8 @@ module.exports = {
         const jobsBefore = await getJobs();
         const job = jobsBefore.find(j => j.id === jobId);
 
-        // Write exact sheet value the business wants
-        const updatedJob = await updateJob(jobId, { status: 'Complete' });
+        // Write status that matches the rest of the system
+        const updatedJob = await updateJob(jobId, { status: 'completed' });
 
         // refresh boards & client card
         try {
@@ -319,7 +319,7 @@ module.exports = {
           console.error('Board refresh after complete failed:', e);
         }
 
-        await interaction.editReply(`✅ Marked **${updatedJob.id}** Complete. It’s now hidden from boards/cards and won’t count as open.`);
+        await interaction.editReply(`✅ Marked **${updatedJob.id}** completed. It's now hidden from boards/cards and won't count as open.`);
       } catch (err) {
         const msg = err?.message || String(err);
         await interaction.editReply(`❌ Couldn’t complete **${jobId}**: ${msg}`);
