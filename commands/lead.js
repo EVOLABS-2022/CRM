@@ -125,6 +125,21 @@ module.exports = {
           console.log('🔧 Generated missing ID for lead:', lead.name);
         }
         
+        // Ensure lead has a client code (needed for channel creation)
+        if (!lead.code || lead.code.trim() === '') {
+          // Generate client code from first 4 letters like in client creation
+          const clients = await getClients();
+          let baseCode = lead.name.substring(0, 4).toUpperCase();
+          let code = baseCode;
+          let counter = 1;
+          while (clients.some(c => c.code === code)) {
+            code = baseCode.substring(0, 3) + counter;
+            counter++;
+          }
+          updates.code = code;
+          console.log('🔧 Generated missing client code for lead:', lead.name, '->', code);
+        }
+        
         if (!lead.authCode || lead.authCode.trim() === '') {
           const crypto = require('crypto');
           const generateAuthCode = () => {
@@ -161,10 +176,47 @@ module.exports = {
         // Create client channel and card in Discord
         try {
           console.log('🏗️ Creating Discord channel for converted client:', lead.name);
-          await ensureClientCard(interaction.client, interaction.guildId, updatedClient);
-          console.log('✅ Client card created for converted lead');
+          
+          // Get the updated client data from sheets to ensure we have all the new info
+          const refreshedClients = await getClients();
+          const refreshedClient = refreshedClients.find(c => 
+            c.id === (updates.id || lead.id) || c.name === lead.name
+          );
+          
+          if (!refreshedClient) {
+            throw new Error('Could not find refreshed client data after conversion');
+          }
+          
+          // Create the client card (this handles channel creation, card creation, and pinning)
+          const clientCard = await ensureClientCard(interaction.client, interaction.guildId, refreshedClient);
+          
+          if (clientCard) {
+            console.log('✅ Client channel and card created successfully');
+            
+            // Pin the client card message
+            try {
+              await clientCard.pin();
+              console.log('📌 Client card pinned successfully');
+            } catch (pinError) {
+              console.warn('⚠️ Could not pin client card:', pinError.message);
+            }
+            
+            // Make sure the channel and message IDs are saved to sheets
+            if (refreshedClient.channelId && refreshedClient.clientCardMessageId) {
+              try {
+                const { updateClientChannel } = require('../lib/sheetsDb');
+                await updateClientChannel(refreshedClient.id, refreshedClient.channelId, refreshedClient.clientCardMessageId);
+                console.log('💾 Saved channel and message IDs to Google Sheets');
+              } catch (saveError) {
+                console.error('❌ Failed to save IDs to sheets:', saveError);
+              }
+            }
+          } else {
+            throw new Error('Failed to create client card');
+          }
         } catch (error) {
-          console.error('❌ Failed to create client channel:', error);
+          console.error('❌ Failed to create client channel and card:', error);
+          // Continue with the process - the conversion is still successful
         }
 
         // Refresh all boards to reflect the conversion
