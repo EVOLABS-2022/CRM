@@ -69,10 +69,21 @@ async function refreshLeadsBoard(client, leads = []) {
 
 // Helper function to filter clients into leads (inactive clients)
 function getLeadsFromClients(clients = []) {
-  return clients.filter(client => {
+  const leads = clients.filter(client => {
     const activeStatus = (client.active || '').toLowerCase();
-    return activeStatus !== 'yes';
+    const hasName = client.name && client.name.trim() !== '';
+    
+    // Debug logging
+    if (hasName && activeStatus !== 'yes') {
+      console.log(`🔍 Found lead: ${client.name} (Active: "${client.active || 'empty'}")`);
+    }
+    
+    // A lead is any client with a name that doesn't have "yes" in active column
+    return hasName && activeStatus !== 'yes';
   });
+  
+  console.log(`📋 Total leads found: ${leads.length}`);
+  return leads;
 }
 
 // Helper function to filter clients into active clients only
