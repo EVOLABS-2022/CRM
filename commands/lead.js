@@ -115,9 +115,35 @@ module.exports = {
           });
         }
         
-        // Convert lead to active client by updating Active column to 'yes'
+        // First, repair the lead if it's missing ID or auth code
+        const updates = { active: 'yes' };
+        
+        // Check if lead needs repair
+        if (!lead.id || lead.id.trim() === '') {
+          const { v4: uuidv4 } = require('uuid');
+          updates.id = uuidv4();
+          console.log('🔧 Generated missing ID for lead:', lead.name);
+        }
+        
+        if (!lead.authCode || lead.authCode.trim() === '') {
+          const crypto = require('crypto');
+          const generateAuthCode = () => {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let result = '';
+            for (let i = 0; i < 8; i++) {
+              const randomIndex = crypto.randomInt(0, characters.length);
+              result += characters[randomIndex];
+            }
+            return result;
+          };
+          updates.authCode = generateAuthCode();
+          console.log('🔧 Generated missing auth code for lead:', lead.name);
+        }
+
+        // Convert lead to active client
         console.log('🔄 Converting lead to active client:', lead.name);
-        const updatedClient = await updateClient(leadId, { active: 'yes' });
+        const clientIdentifier = lead.id && lead.id.trim() !== '' ? lead.id : lead.name;
+        const updatedClient = await updateClient(clientIdentifier, updates);
         
         // Create client folder in Google Drive
         try {
