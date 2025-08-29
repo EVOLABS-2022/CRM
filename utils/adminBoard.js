@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
 const { getTasks, getJobs, getClients, getInvoices } = require('../lib/sheetsDb');
+const { getLeadsFromClients, getActiveClientsFromClients } = require('./leadBoard');
 const settings = require('../lib/settings');
 
 function prettyDate(dateStr) {
@@ -36,6 +37,10 @@ async function buildAdminBoard(guildId) {
   const clients = await getClients();
   const invoices = await getInvoices();
 
+  // Separate clients into active clients and leads
+  const activeClients = getActiveClientsFromClients(clients);
+  const leads = getLeadsFromClients(clients);
+
   const activeTasks = tasks.filter(t => t.status !== 'completed');
   const openJobs = jobs.filter(j => j.status !== 'completed' && j.status !== 'closed');
   const pendingInvoices = invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled');
@@ -55,7 +60,8 @@ async function buildAdminBoard(guildId) {
 
   // Quick stats
   sections.push('📊 **Quick Stats**');
-  sections.push(`• **${clients.length}** active clients`);
+  sections.push(`• **${activeClients.length}** active clients`);
+  sections.push(`• **${leads.length}** new leads ${leads.length > 0 ? '🆕' : ''}`);
   sections.push(`• **${openJobs.length}** open jobs`);
   sections.push(`• **${activeTasks.length}** active tasks`);
   sections.push(`• **${pendingInvoices.length}** pending invoices`);
