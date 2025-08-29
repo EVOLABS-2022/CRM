@@ -497,6 +497,14 @@ async function generateInvoiceForm(invoice, client, job) {
     updates.push({ range: 'Invoice Form!G11', values: [[invoice.id]] });
   }
   
+  // Current date in mm-dd-yy format for cell C9
+  const currentDate = new Date();
+  const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+  const day = String(currentDate.getDate()).padStart(2, '0');
+  const year = String(currentDate.getFullYear()).slice(-2);
+  const dateString = `${month}-${day}-${year}`;
+  updates.push({ range: 'Invoice Form!C9', values: [[dateString]] });
+  
   if (client.name) {
     updates.push({ range: 'Invoice Form!B12:C12', values: [[client.name, '']] });
   }
