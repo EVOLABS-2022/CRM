@@ -145,6 +145,7 @@ async function repairClientData(isDryRun = false) {
         existingIds.add(newId);
         result.idsFixed++;
         needsUpdate = true;
+        console.log(`🔧 Generated ID for client: ${client.name} -> ${newId}`);
       }
 
       // Check for missing auth code
@@ -163,8 +164,8 @@ async function repairClientData(isDryRun = false) {
       // Apply updates if needed and not in dry run mode
       if (needsUpdate && !isDryRun) {
         try {
-          // Use the client's existing ID if it has one, otherwise use the row index
-          const clientIdentifier = client.id || client.name || `Row ${clients.indexOf(client) + 1}`;
+          // Use the client's existing ID if it has one, otherwise use the client name
+          const clientIdentifier = client.id && client.id.trim() !== '' ? client.id : client.name;
           await updateClient(clientIdentifier, updates);
           console.log(`✅ Repaired client: ${client.name} - ${Object.keys(updates).join(', ')}`);
         } catch (error) {
