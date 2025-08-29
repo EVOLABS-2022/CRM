@@ -192,6 +192,9 @@ module.exports = {
           
           if (clientCard) {
             console.log('✅ Client channel and card created successfully');
+            console.log(`🔍 Channel ID: ${refreshedClient.channelId}`);
+            console.log(`🔍 Message ID: ${refreshedClient.clientCardMessageId}`);
+            console.log(`🔍 Client ID for lookup: ${refreshedClient.id}`);
             
             // Pin the client card message
             try {
@@ -205,11 +208,24 @@ module.exports = {
             if (refreshedClient.channelId && refreshedClient.clientCardMessageId) {
               try {
                 const { updateClientChannel } = require('../lib/sheetsDb');
-                await updateClientChannel(refreshedClient.id, refreshedClient.channelId, refreshedClient.clientCardMessageId);
-                console.log('💾 Saved channel and message IDs to Google Sheets');
+                // Use the client identifier that works (ID or name)
+                const clientIdentifier = refreshedClient.id || refreshedClient.name;
+                console.log(`💾 Attempting to save channel/message IDs using identifier: ${clientIdentifier}`);
+                
+                const success = await updateClientChannel(clientIdentifier, refreshedClient.channelId, refreshedClient.clientCardMessageId);
+                if (success) {
+                  console.log('✅ Successfully saved channel and message IDs to Google Sheets');
+                } else {
+                  console.error('❌ updateClientChannel returned false');
+                }
               } catch (saveError) {
                 console.error('❌ Failed to save IDs to sheets:', saveError);
               }
+            } else {
+              console.warn('⚠️ Missing channel or message ID:', {
+                channelId: refreshedClient.channelId,
+                messageId: refreshedClient.clientCardMessageId
+              });
             }
           } else {
             throw new Error('Failed to create client card');
