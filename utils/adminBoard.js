@@ -61,7 +61,7 @@ async function buildAdminBoard(guildId) {
   // Quick stats
   sections.push('📊 **Quick Stats**');
   sections.push(`• **${activeClients.length}** active clients`);
-  sections.push(`• **${leads.length}** new leads ${leads.length > 0 ? '🆕' : ''}`);
+  sections.push(`• **${leads.length}** new leads`);
   sections.push(`• **${openJobs.length}** open jobs`);
   sections.push(`• **${activeTasks.length}** active tasks`);
   sections.push(`• **${pendingInvoices.length}** pending invoices`);
