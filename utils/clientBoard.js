@@ -9,9 +9,14 @@ async function refreshClientsBoard(client, clients = []) {
   const embed = new EmbedBuilder()
     .setTitle('Client Board')
     .setColor('#0099ff')
-    .setDescription('List of all clients with channels, contacts, and open invoices');
+    .setDescription('List of active clients with channels, contacts, and open invoices');
 
-  const clientList = Array.isArray(clients) ? clients : [];
+  // Filter to only show active clients (those with "yes" in Active column)
+  const allClients = Array.isArray(clients) ? clients : [];
+  const clientList = allClients.filter(c => {
+    const activeStatus = (c.active || '').toLowerCase();
+    return activeStatus === 'yes';
+  });
 
   for (const c of clientList) {
     const invoiceCount = Array.isArray(c.invoices)
