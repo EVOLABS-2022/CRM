@@ -28,10 +28,10 @@ module.exports = {
         .setName('edit')
         .setDescription('Edit an existing job')
         .addStringOption(opt =>
-          opt.setName('client').setDescription('Client code').setRequired(true).setAutocomplete(true)
+          opt.setName('client').setDescription('👤 Choose client first').setRequired(true).setAutocomplete(true)
         )
         .addStringOption(opt =>
-          opt.setName('job').setDescription('Job to edit').setRequired(true).setAutocomplete(true)
+          opt.setName('job').setDescription('📝 Job to edit (select client first)').setRequired(true).setAutocomplete(true)
         )
         .addStringOption(opt =>
           opt.setName('title').setDescription('New job title')
@@ -76,10 +76,10 @@ module.exports = {
         .setName('complete')
         .setDescription('Mark a job Complete (updates Sheet and hides from boards)')
         .addStringOption(opt =>
-          opt.setName('client').setDescription('Client code').setRequired(true).setAutocomplete(true)
+          opt.setName('client').setDescription('👤 Choose client first').setRequired(true).setAutocomplete(true)
         )
         .addStringOption(opt =>
-          opt.setName('id').setDescription('Job ID (e.g., NEO-001)').setRequired(true).setAutocomplete(true)
+          opt.setName('id').setDescription('📝 Job ID (select client first)').setRequired(true).setAutocomplete(true)
         )
     ),
 
@@ -106,14 +106,17 @@ module.exports = {
         const selectedClientCode = interaction.options.getString('client');
         
         if (!selectedClientCode) {
-          // If no client is selected yet, don't show any jobs
-          return await interaction.respond([{ name: 'Please select a client first', value: 'no-client' }]);
+          // If no client is selected yet, show a helpful message
+          return await interaction.respond([
+            { name: '👤 Please fill in the CLIENT field first', value: 'select-client-first' },
+            { name: '↑ Choose a client above to see their jobs', value: 'client-required' }
+          ]);
         }
         
         // Find the selected client to get their ID
         const selectedClient = clients.find(c => c.code === selectedClientCode);
         if (!selectedClient) {
-          return await interaction.respond([{ name: 'Invalid client selected', value: 'invalid-client' }]);
+          return await interaction.respond([{ name: '❌ Invalid client code - please reselect client', value: 'invalid-client' }]);
         }
         
         // Filter jobs by the selected client
@@ -124,7 +127,7 @@ module.exports = {
         );
         
         if (clientJobs.length === 0) {
-          return await interaction.respond([{ name: 'No open jobs found for this client', value: 'no-jobs' }]);
+          return await interaction.respond([{ name: `📭 No open jobs found for ${selectedClient.name}`, value: 'no-jobs' }]);
         }
         
         const choices = clientJobs
@@ -144,14 +147,17 @@ module.exports = {
         const selectedClientCode = interaction.options.getString('client');
         
         if (!selectedClientCode) {
-          // If no client is selected yet, don't show any jobs
-          return await interaction.respond([{ name: 'Please select a client first', value: 'no-client' }]);
+          // If no client is selected yet, show a helpful message
+          return await interaction.respond([
+            { name: '👤 Please fill in the CLIENT field first', value: 'select-client-first' },
+            { name: '↑ Choose a client above to see their jobs', value: 'client-required' }
+          ]);
         }
         
         // Find the selected client to get their ID
         const selectedClient = clients.find(c => c.code === selectedClientCode);
         if (!selectedClient) {
-          return await interaction.respond([{ name: 'Invalid client selected', value: 'invalid-client' }]);
+          return await interaction.respond([{ name: '❌ Invalid client code - please reselect client', value: 'invalid-client' }]);
         }
         
         // Filter jobs by the selected client (only open jobs for completion)
@@ -162,7 +168,7 @@ module.exports = {
         );
         
         if (clientJobs.length === 0) {
-          return await interaction.respond([{ name: 'No open jobs found for this client', value: 'no-jobs' }]);
+          return await interaction.respond([{ name: `📭 No open jobs found for ${selectedClient.name}`, value: 'no-jobs' }]);
         }
         
         const choices = clientJobs
@@ -265,6 +271,13 @@ module.exports = {
 
       const clientCode = interaction.options.getString('client');
       const jobId = interaction.options.getString('job');
+      
+      // Check for invalid autocomplete selections
+      if (jobId === 'select-client-first' || jobId === 'client-required' || jobId === 'no-jobs' || jobId === 'invalid-client') {
+        return await interaction.editReply({ 
+          content: '❌ Please select a valid client first, then choose a job from that client.' 
+        });
+      }
       
       // Validate the client exists
       const clients = await getClients();
@@ -370,6 +383,13 @@ module.exports = {
       console.log(`[job.complete] invoked for ${jobId} (client: ${clientCode})`);
 
       try {
+        // Check for invalid autocomplete selections
+        if (jobId === 'select-client-first' || jobId === 'client-required' || jobId === 'no-jobs' || jobId === 'invalid-client') {
+          return await interaction.editReply({ 
+            content: '❌ Please select a valid client first, then choose a job from that client.' 
+          });
+        }
+        
         // Validate the client exists
         const clients = await getClients();
         const client = clients.find(c => c.code === clientCode);
