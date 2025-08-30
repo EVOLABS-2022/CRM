@@ -28,47 +28,10 @@ module.exports = {
         .setName('edit')
         .setDescription('Edit an existing job')
         .addStringOption(opt =>
-          opt.setName('client').setDescription('👤 Choose client first').setRequired(true).setAutocomplete(true)
+          opt.setName('client').setDescription('Client code').setRequired(true).setAutocomplete(true)
         )
         .addStringOption(opt =>
-          opt.setName('job').setDescription('📝 Job to edit (select client first)').setRequired(true).setAutocomplete(true)
-        )
-        .addStringOption(opt =>
-          opt.setName('title').setDescription('New job title')
-        )
-        .addStringOption(opt =>
-          opt.setName('description').setDescription('Job description')
-        )
-        .addStringOption(opt =>
-          opt.setName('status').setDescription('Job status')
-          .addChoices(
-            { name: 'Open', value: 'open' },
-            { name: 'In Progress', value: 'in-progress' },
-            { name: 'Pending', value: 'pending' },
-            { name: 'Completed', value: 'completed' },
-            { name: 'Closed', value: 'closed' }
-          )
-        )
-        .addStringOption(opt =>
-          opt.setName('deadline').setDescription('Job deadline (e.g., "next Friday", "in 2 weeks", "Dec 15")')
-        )
-        .addNumberOption(opt =>
-          opt.setName('budget').setDescription('Job budget amount')
-        )
-        .addStringOption(opt =>
-          opt.setName('notes').setDescription('Additional notes')
-        )
-        .addStringOption(opt =>
-          opt.setName('priority').setDescription('Job priority')
-          .addChoices(
-            { name: 'Low', value: 'low' },
-            { name: 'Medium', value: 'medium' },
-            { name: 'High', value: 'high' },
-            { name: 'Urgent', value: 'urgent' }
-          )
-        )
-        .addUserOption(opt =>
-          opt.setName('assignee').setDescription('Assign job to user')
+          opt.setName('job').setDescription('Job to edit').setRequired(true).setAutocomplete(true)
         )
     )
     .addSubcommand(sub =>
@@ -76,10 +39,10 @@ module.exports = {
         .setName('complete')
         .setDescription('Mark a job Complete (updates Sheet and hides from boards)')
         .addStringOption(opt =>
-          opt.setName('client').setDescription('👤 Choose client first').setRequired(true).setAutocomplete(true)
+          opt.setName('client').setDescription('Client code').setRequired(true).setAutocomplete(true)
         )
         .addStringOption(opt =>
-          opt.setName('id').setDescription('📝 Job ID (select client first)').setRequired(true).setAutocomplete(true)
+          opt.setName('id').setDescription('Job ID to complete').setRequired(true).setAutocomplete(true)
         )
     ),
 
@@ -108,8 +71,7 @@ module.exports = {
         if (!selectedClientCode) {
           // If no client is selected yet, show a helpful message
           return await interaction.respond([
-            { name: '👤 Please fill in the CLIENT field first', value: 'select-client-first' },
-            { name: '↑ Choose a client above to see their jobs', value: 'client-required' }
+            { name: 'Please select a client first', value: 'select-client-first' }
           ]);
         }
         
@@ -149,8 +111,7 @@ module.exports = {
         if (!selectedClientCode) {
           // If no client is selected yet, show a helpful message
           return await interaction.respond([
-            { name: '👤 Please fill in the CLIENT field first', value: 'select-client-first' },
-            { name: '↑ Choose a client above to see their jobs', value: 'client-required' }
+            { name: 'Please select a client first', value: 'select-client-first' }
           ]);
         }
         
@@ -273,28 +234,20 @@ module.exports = {
       const jobId = interaction.options.getString('job');
       
       // Check for invalid autocomplete selections
-      if (jobId === 'select-client-first' || jobId === 'client-required' || jobId === 'no-jobs' || jobId === 'invalid-client') {
+      if (jobId === 'select-client-first' || jobId === 'no-jobs' || jobId === 'invalid-client') {
         return await interaction.editReply({ 
           content: '❌ Please select a valid client first, then choose a job from that client.' 
         });
       }
       
-      // Validate the client exists
-      const clients = await getClients();
-      const client = clients.find(c => c.code === clientCode);
-      if (!client) {
-        return await interaction.editReply({ content: `❌ Client with code ${clientCode} not found.` });
-      }
-      const newTitle = interaction.options.getString('title');
-      const newDescription = interaction.options.getString('description');
-      const newStatus = interaction.options.getString('status');
-      const newDeadline = interaction.options.getString('deadline');
-      const newBudget = interaction.options.getNumber('budget');
-      const newNotes = interaction.options.getString('notes');
-      const newPriority = interaction.options.getString('priority');
-      const newAssignee = interaction.options.getUser('assignee');
-
       try {
+        // Validate the client exists
+        const clients = await getClients();
+        const client = clients.find(c => c.code === clientCode);
+        if (!client) {
+          return await interaction.editReply({ content: `❌ Client with code ${clientCode} not found.` });
+        }
+
         const jobs = await getJobs();
         const job = jobs.find(j => j.id === jobId);
         if (!job) {
@@ -308,70 +261,26 @@ module.exports = {
           });
         }
 
-        // parse deadline
-        let parsedDeadline = null;
-        if (newDeadline) {
-          const parsed = chrono.parseDate(newDeadline);
-          if (!parsed) {
-            return await interaction.editReply({
-              content: '❌ Could not understand the deadline format. Try "next Friday", "in 2 weeks", "Dec 15", etc.'
-            });
-          }
-          parsedDeadline = parsed.toISOString().split('T')[0]; // YYYY-MM-DD UTC
-        }
-
-        const updates = {};
-        if (newTitle) updates.title = newTitle;
-        if (newDescription !== null) updates.description = newDescription;
-        if (newStatus) updates.status = newStatus;
-        if (parsedDeadline) updates.deadline = parsedDeadline;
-        if (newBudget !== null) updates.budget = newBudget;
-        if (newNotes !== null) updates.notes = newNotes;
-        if (newPriority) updates.priority = newPriority;
-        if (newAssignee) updates.assigneeId = newAssignee.id;
-
-        if (Object.keys(updates).length === 0) {
-          return await interaction.editReply({ content: '❌ No changes provided. Please specify at least one field to update.' });
-        }
-
-        // update sheet
-        console.log('📝 Updating job in Google Sheets:', job.title);
-        const updatedJob = await updateJob(jobId, updates);
-
-        // refresh client card + job thread + boards
-        try {
-          // Use the client we already have from validation
-          if (client) {
-            await ensureClientCard(interaction.client, interaction.guildId, client);
-            if (client.channelId) {
-              const channel = await interaction.client.channels.fetch(client.channelId).catch(() => null);
-              if (channel) {
-                await ensureJobThread(interaction.client, client, channel, updatedJob);
-              }
-            }
-          }
-          await Promise.all([
-            refreshAllBoards(interaction.client),
-            refreshAllAdminBoards(interaction.client)
-          ]);
-          console.log('✅ Client card and boards refreshed');
-        } catch (error) {
-          console.error('❌ Failed to refresh client card/job thread/boards:', error);
-        }
-
-        const changedFields = Object.keys(updates).map(key => {
-          const oldValue = job[key] || 'empty';
-          let displayValue = updates[key];
-          if (key === 'deadline' && newDeadline) displayValue = `${updates[key]} UTC (from "${newDeadline}")`;
-          return `${key}: ${oldValue} → ${displayValue}`;
-        }).join('\n');
+        // Show current job details and ask what to edit
+        const currentDetails = [
+          `**Job:** ${job.title}`,
+          `**Client:** ${client.name} (${clientCode})`,
+          `**Status:** ${job.status || 'open'}`,
+          `**Description:** ${job.description || 'None'}`,
+          `**Priority:** ${job.priority || 'Not set'}`,
+          `**Budget:** ${job.budget ? `$${job.budget}` : 'Not set'}`,
+          `**Deadline:** ${job.deadline || 'Not set'}`,
+          `**Assignee:** ${job.assigneeId ? `<@${job.assigneeId}>` : 'Not assigned'}`,
+          `**Notes:** ${job.notes || 'None'}`
+        ].join('\n');
 
         await interaction.editReply({
-          content: `✅ Updated job ${updatedJob.title} (${updatedJob.id})\n\`\`\`\n${changedFields}\n\`\`\``
+          content: `📝 **Edit Job ${job.id}**\n\n${currentDetails}\n\n⚠️ **Job editing UI is being redesigned**\nFor now, please use the individual field commands or edit directly in Google Sheets.\n\nComing soon: Interactive edit modal!`
         });
+
       } catch (error) {
         console.error('❌ Job edit failed:', error);
-        await interaction.editReply({ content: `❌ Failed to edit job: ${error.message}` });
+        await interaction.editReply({ content: `❌ Failed to load job: ${error.message}` });
       }
       return;
     }
@@ -384,7 +293,7 @@ module.exports = {
 
       try {
         // Check for invalid autocomplete selections
-        if (jobId === 'select-client-first' || jobId === 'client-required' || jobId === 'no-jobs' || jobId === 'invalid-client') {
+        if (jobId === 'select-client-first' || jobId === 'no-jobs' || jobId === 'invalid-client') {
           return await interaction.editReply({ 
             content: '❌ Please select a valid client first, then choose a job from that client.' 
           });
