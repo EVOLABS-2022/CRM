@@ -60,10 +60,10 @@ async function buildAdminBoard(guildId) {
 
   // Quick stats
   sections.push('📊 **Quick Stats**');
-  sections.push(`• **${activeClients.length}** active clients`);
+  sections.push(`• **${activeClients.length}** active [clients](https://discord.com/channels/${guildId}/👥-client-board)`);
   sections.push(`• **${leads.length}** new inquiries`);
-  sections.push(`• **${openJobs.length}** open jobs`);
-  sections.push(`• **${activeTasks.length}** active tasks`);
+  sections.push(`• **${openJobs.length}** open [jobs](https://discord.com/channels/${guildId}/🛠️-job-board)`);
+  sections.push(`• **${activeTasks.length}** active [tasks](https://discord.com/channels/${guildId}/task-board)`);
   sections.push(`• **${pendingInvoices.length}** pending invoices`);
   sections.push('');
 
