@@ -74,6 +74,14 @@ module.exports = {
       sub
         .setName('cleanup-channels')
         .setDescription('Remove duplicate client channels and fix channel mappings')
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('convert')
+        .setDescription('Convert a new inquiry to an active client')
+        .addStringOption(opt =>
+          opt.setName('inquiry').setDescription('New inquiry to convert').setRequired(true).setAutocomplete(true)
+        )
     ),
 
   async autocomplete(interaction) {
@@ -97,6 +105,30 @@ module.exports = {
         await interaction.respond(choices);
       } catch (error) {
         console.error('Client autocomplete error:', error);
+        await interaction.respond([]);
+      }
+    }
+    
+    if (focused.name === 'inquiry') {
+      try {
+        const clients = await getClients();
+        const { getLeadsFromClients } = require('../utils/leadBoard');
+        const inquiries = getLeadsFromClients(clients);
+        
+        const choices = inquiries
+          .map(inquiry => ({
+            name: `${inquiry.code || 'NO-CODE'} - ${inquiry.name}`,
+            value: inquiry.id
+          }))
+          .filter(choice => 
+            !focused.value || 
+            choice.name.toLowerCase().includes(focused.value.toLowerCase())
+          )
+          .slice(0, 25);
+        
+        await interaction.respond(choices);
+      } catch (error) {
+        console.error('Inquiry autocomplete error:', error);
         await interaction.respond([]);
       }
     }
@@ -408,6 +440,169 @@ module.exports = {
         console.error('❌ Channel cleanup failed:', error);
         await interaction.editReply({
           content: `❌ Failed to cleanup channels: ${error.message}`
+        });
+      }
+    }
+
+    if (sub === 'convert') {
+      // Check if user has permission to convert inquiries (requires Team Lead or higher)
+      if (!canSeeClientJobData(interaction.member)) {
+        return interaction.reply({ 
+          content: '❌ You need Team Lead permissions or higher to convert inquiries.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
+
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      
+      const inquiryId = interaction.options.getString('inquiry');
+      
+      try {
+        const clients = await getClients();
+        const inquiry = clients.find(c => c.id === inquiryId);
+        
+        if (!inquiry) {
+          return await interaction.editReply({
+            content: '❌ Inquiry not found.'
+          });
+        }
+        
+        // Check if already active
+        const activeStatus = (inquiry.active || '').toLowerCase();
+        if (activeStatus === 'yes') {
+          return await interaction.editReply({
+            content: `❌ **${inquiry.name}** is already an active client.`
+          });
+        }
+        
+        // First, repair the inquiry if it's missing ID or auth code
+        const updates = { active: 'yes' };
+        
+        // Check if inquiry needs repair
+        if (!inquiry.id || inquiry.id.trim() === '') {
+          const { v4: uuidv4 } = require('uuid');
+          updates.id = uuidv4();
+          console.log('🔧 Generated missing ID for inquiry:', inquiry.name);
+        }
+        
+        // Ensure inquiry has a client code (needed for channel creation)
+        if (!inquiry.code || inquiry.code.trim() === '') {
+          // Generate client code from first 4 letters like in client creation
+          const clients = await getClients();
+          let baseCode = inquiry.name.substring(0, 4).toUpperCase();
+          let code = baseCode;
+          let counter = 1;
+          while (clients.some(c => c.code === code)) {
+            code = baseCode.substring(0, 3) + counter;
+            counter++;
+          }
+          updates.code = code;
+          console.log('🔧 Generated missing client code for inquiry:', inquiry.name, '->', code);
+        }
+        
+        if (!inquiry.authCode || inquiry.authCode.trim() === '') {
+          updates.authCode = generateAuthCode();
+          console.log('🔧 Generated missing auth code for inquiry:', inquiry.name);
+        }
+
+        // Convert inquiry to active client
+        console.log('🔄 Converting inquiry to active client:', inquiry.name);
+        const clientIdentifier = inquiry.id && inquiry.id.trim() !== '' ? inquiry.id : inquiry.name;
+        const updatedClient = await updateClient(clientIdentifier, updates);
+        
+        // Create client folder in Google Drive
+        try {
+          console.log('📁 Creating Drive folder for converted client:', inquiry.name);
+          const { ensureClientFolder } = require('../lib/driveManager');
+          const folderId = await ensureClientFolder(inquiry.code.trim(), inquiry.name);
+          if (folderId) {
+            console.log(`✅ Created/found client folder ${inquiry.code} (ID: ${folderId})`);
+          } else {
+            console.warn(`⚠️ Could not create/find client folder for ${inquiry.code}`);
+          }
+        } catch (error) {
+          console.error('❌ Failed to create client folder:', error);
+        }
+
+        // Create client channel and card in Discord
+        try {
+          console.log('🏗️ Creating Discord channel for converted client:', inquiry.name);
+          
+          // Get the updated client data from sheets to ensure we have all the new info
+          const refreshedClients = await getClients();
+          const refreshedClient = refreshedClients.find(c => 
+            c.id === (updates.id || inquiry.id) || c.name === inquiry.name
+          );
+          
+          if (!refreshedClient) {
+            throw new Error('Could not find refreshed client data after conversion');
+          }
+          
+          // Create the client card (this handles channel creation, card creation, and pinning)
+          const clientCard = await ensureClientCard(interaction.client, interaction.guildId, refreshedClient);
+          
+          if (clientCard) {
+            console.log('✅ Client channel and card created successfully');
+            
+            // Pin the client card message
+            try {
+              await clientCard.pin();
+              console.log('📌 Client card pinned successfully');
+            } catch (pinError) {
+              console.warn('⚠️ Could not pin client card:', pinError.message);
+            }
+            
+            // Make sure the channel and message IDs are saved to sheets
+            if (refreshedClient.channelId && refreshedClient.clientCardMessageId) {
+              try {
+                // Use the client identifier that works (ID or name)
+                const clientIdentifier = refreshedClient.id || refreshedClient.name;
+                console.log(`💾 Attempting to save channel/message IDs using identifier: ${clientIdentifier}`);
+                
+                const success = await updateClientChannel(clientIdentifier, refreshedClient.channelId, refreshedClient.clientCardMessageId);
+                if (success) {
+                  console.log('✅ Successfully saved channel and message IDs to Google Sheets');
+                } else {
+                  console.error('❌ updateClientChannel returned false');
+                }
+              } catch (saveError) {
+                console.error('❌ Failed to save IDs to sheets:', saveError);
+              }
+            }
+          } else {
+            throw new Error('Failed to create client card');
+          }
+        } catch (error) {
+          console.error('❌ Failed to create client channel and card:', error);
+          // Continue with the process - the conversion is still successful
+        }
+
+        // Refresh all boards to reflect the conversion
+        try {
+          console.log('🔄 Updating boards after inquiry conversion...');
+          const allClients = await getClients();
+          await Promise.all([
+            refreshAllBoards(interaction.client),
+            refreshAllAdminBoards(interaction.client)
+          ]);
+          console.log('✅ All boards updated successfully');
+        } catch (error) {
+          console.error('❌ Failed to update boards:', error);
+          // Continue anyway - boards will be updated by scheduler
+        }
+
+        await interaction.editReply({
+          content: `✅ **Inquiry converted successfully!**\n\n` +
+            `🎉 **${inquiry.name}** (${inquiry.code}) is now an active client.\n` +
+            `📱 Their Discord channel has been created and they'll appear on the client board.\n` +
+            `📁 Google Drive folder has been set up for their files.\n\n` +
+            `Check the client board and admin board to see the changes.`
+        });
+        
+      } catch (error) {
+        console.error('❌ Inquiry conversion failed:', error);
+        await interaction.editReply({
+          content: `❌ Failed to convert inquiry: ${error.message}`
         });
       }
     }
