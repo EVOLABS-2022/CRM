@@ -28,6 +28,9 @@ module.exports = {
         .setName('edit')
         .setDescription('Edit an existing job')
         .addStringOption(opt =>
+          opt.setName('client').setDescription('Client code').setRequired(true).setAutocomplete(true)
+        )
+        .addStringOption(opt =>
           opt.setName('job').setDescription('Job to edit').setRequired(true).setAutocomplete(true)
         )
         .addStringOption(opt =>
@@ -73,6 +76,9 @@ module.exports = {
         .setName('complete')
         .setDescription('Mark a job Complete (updates Sheet and hides from boards)')
         .addStringOption(opt =>
+          opt.setName('client').setDescription('Client code').setRequired(true).setAutocomplete(true)
+        )
+        .addStringOption(opt =>
           opt.setName('id').setDescription('Job ID (e.g., NEO-001)').setRequired(true).setAutocomplete(true)
         )
     ),
@@ -81,7 +87,7 @@ module.exports = {
     try {
       const focused = interaction.options.getFocused(true);
 
-      // /job create -> client
+      // /job create -> client OR /job edit -> client
       if (focused.name === 'client') {
         const clients = await getClients();
         if (!clients?.length) return await interaction.respond([]);
@@ -91,25 +97,79 @@ module.exports = {
         return await interaction.respond(filtered.slice(0, 25));
       }
 
-      // /job edit -> job
+      // /job edit -> job (filtered by client)
       if (focused.name === 'job') {
         const jobs = await getJobs();
-        const choices = jobs
-          .filter(j => j.status !== 'completed' && j.status !== 'closed')
+        const clients = await getClients();
+        
+        // Get the selected client code from the interaction
+        const selectedClientCode = interaction.options.getString('client');
+        
+        if (!selectedClientCode) {
+          // If no client is selected yet, don't show any jobs
+          return await interaction.respond([{ name: 'Please select a client first', value: 'no-client' }]);
+        }
+        
+        // Find the selected client to get their ID
+        const selectedClient = clients.find(c => c.code === selectedClientCode);
+        if (!selectedClient) {
+          return await interaction.respond([{ name: 'Invalid client selected', value: 'invalid-client' }]);
+        }
+        
+        // Filter jobs by the selected client
+        const clientJobs = jobs.filter(j => 
+          j.clientId === selectedClient.id && 
+          j.status !== 'completed' && 
+          j.status !== 'closed'
+        );
+        
+        if (clientJobs.length === 0) {
+          return await interaction.respond([{ name: 'No open jobs found for this client', value: 'no-jobs' }]);
+        }
+        
+        const choices = clientJobs
           .map(j => ({ name: `${j.id} - ${j.title}`, value: j.id }))
           .filter(choice => !focused.value || choice.name.toLowerCase().includes(focused.value.toLowerCase()))
           .slice(0, 25);
+          
         return await interaction.respond(choices);
       }
 
-      // /job complete -> id
+      // /job complete -> id (filtered by client)
       if (focused.name === 'id') {
         const jobs = await getJobs();
-        const choices = jobs
-          .filter(j => j.status !== 'completed' && j.status !== 'closed')
+        const clients = await getClients();
+        
+        // Get the selected client code from the interaction
+        const selectedClientCode = interaction.options.getString('client');
+        
+        if (!selectedClientCode) {
+          // If no client is selected yet, don't show any jobs
+          return await interaction.respond([{ name: 'Please select a client first', value: 'no-client' }]);
+        }
+        
+        // Find the selected client to get their ID
+        const selectedClient = clients.find(c => c.code === selectedClientCode);
+        if (!selectedClient) {
+          return await interaction.respond([{ name: 'Invalid client selected', value: 'invalid-client' }]);
+        }
+        
+        // Filter jobs by the selected client (only open jobs for completion)
+        const clientJobs = jobs.filter(j => 
+          j.clientId === selectedClient.id && 
+          j.status !== 'completed' && 
+          j.status !== 'closed'
+        );
+        
+        if (clientJobs.length === 0) {
+          return await interaction.respond([{ name: 'No open jobs found for this client', value: 'no-jobs' }]);
+        }
+        
+        const choices = clientJobs
           .map(j => ({ name: `${j.id} - ${j.title}`, value: j.id }))
           .filter(choice => !focused.value || choice.name.toLowerCase().includes(focused.value.toLowerCase()))
           .slice(0, 25);
+          
         return await interaction.respond(choices);
       }
 
@@ -203,7 +263,15 @@ module.exports = {
     if (sub === 'edit') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
+      const clientCode = interaction.options.getString('client');
       const jobId = interaction.options.getString('job');
+      
+      // Validate the client exists
+      const clients = await getClients();
+      const client = clients.find(c => c.code === clientCode);
+      if (!client) {
+        return await interaction.editReply({ content: `❌ Client with code ${clientCode} not found.` });
+      }
       const newTitle = interaction.options.getString('title');
       const newDescription = interaction.options.getString('description');
       const newStatus = interaction.options.getString('status');
@@ -218,6 +286,13 @@ module.exports = {
         const job = jobs.find(j => j.id === jobId);
         if (!job) {
           return await interaction.editReply({ content: '❌ Job not found.' });
+        }
+        
+        // Validate that the job belongs to the selected client
+        if (job.clientId !== client.id) {
+          return await interaction.editReply({ 
+            content: `❌ Job ${jobId} does not belong to client ${clientCode}. Please select the correct client.` 
+          });
         }
 
         // parse deadline
@@ -252,8 +327,7 @@ module.exports = {
 
         // refresh client card + job thread + boards
         try {
-          const clients = await getClients();
-          const client = clients.find(c => c.id === job.clientId);
+          // Use the client we already have from validation
           if (client) {
             await ensureClientCard(interaction.client, interaction.guildId, client);
             if (client.channelId) {
@@ -291,26 +365,40 @@ module.exports = {
 
     if (sub === 'complete') {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const clientCode = interaction.options.getString('client');
       const jobId = interaction.options.getString('id', true);
-      console.log(`[job.complete] invoked for ${jobId}`);
+      console.log(`[job.complete] invoked for ${jobId} (client: ${clientCode})`);
 
       try {
-        // capture client before we mutate
+        // Validate the client exists
+        const clients = await getClients();
+        const client = clients.find(c => c.code === clientCode);
+        if (!client) {
+          return await interaction.editReply({ content: `❌ Client with code ${clientCode} not found.` });
+        }
+
+        // capture job before we mutate
         const jobsBefore = await getJobs();
         const job = jobsBefore.find(j => j.id === jobId);
+        
+        if (!job) {
+          return await interaction.editReply({ content: '❌ Job not found.' });
+        }
+        
+        // Validate that the job belongs to the selected client
+        if (job.clientId !== client.id) {
+          return await interaction.editReply({ 
+            content: `❌ Job ${jobId} does not belong to client ${clientCode}. Please select the correct client.` 
+          });
+        }
 
         // Write status that matches the rest of the system
         const updatedJob = await updateJob(jobId, { status: 'completed' });
 
         // refresh boards & client card
         try {
-          if (job?.clientId) {
-            const clients = await getClients();
-            const client = clients.find(c => c.id === job.clientId);
-            if (client) {
-              await ensureClientCard(interaction.client, interaction.guildId, client);
-            }
-          }
+          // Use the client we already have from validation
+          await ensureClientCard(interaction.client, interaction.guildId, client);
           await Promise.all([
             refreshAllBoards(interaction.client),
             refreshAllAdminBoards(interaction.client)
