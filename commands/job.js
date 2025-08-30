@@ -22,6 +22,9 @@ module.exports = {
         .addStringOption(opt =>
           opt.setName('title').setDescription('Job title').setRequired(true)
         )
+        .addUserOption(opt =>
+          opt.setName('assignee').setDescription('Assign job to a team member')
+        )
     )
     .addSubcommand(sub =>
       sub
@@ -63,6 +66,9 @@ module.exports = {
         )
         .addStringOption(opt =>
           opt.setName('due_date').setDescription('Due date (e.g., "next Friday", "in 2 weeks", "Dec 15")')
+        )
+        .addUserOption(opt =>
+          opt.setName('assignee').setDescription('Assign job to a team member')
         )
     )
     .addSubcommand(sub =>
@@ -187,7 +193,8 @@ module.exports = {
       console.log('🔧 Starting job creation...');
       const clientCode = interaction.options.getString('client');
       const title = interaction.options.getString('title');
-      console.log('Job details:', { clientCode, title });
+      const assignee = interaction.options.getUser('assignee');
+      console.log('Job details:', { clientCode, title, assignee: assignee?.id });
 
       try {
         const clients = await getClients();
@@ -209,6 +216,10 @@ module.exports = {
           title,
           status: 'open'
         };
+        
+        if (assignee) {
+          job.assigneeId = assignee.id;
+        }
 
         console.log('📝 Creating job in Google Sheets:', job);
         await createJob(job);
@@ -250,7 +261,8 @@ module.exports = {
         }
 
         console.log('✅ Job creation complete, sending reply...');
-        await interaction.editReply({ content: `✅ Created job ${title} (${jobId}) for ${client.name}` });
+        const assigneeText = assignee ? ` assigned to ${assignee.displayName}` : '';
+        await interaction.editReply({ content: `✅ Created job ${title} (${jobId}) for ${client.name}${assigneeText}` });
       } catch (error) {
         console.error('❌ Job creation failed:', error);
         await interaction.editReply({ content: `❌ Failed to create job: ${error.message}` });
@@ -299,6 +311,7 @@ module.exports = {
         const newPriority = interaction.options.getString('priority');
         const newNotes = interaction.options.getString('notes');
         const newDueDate = interaction.options.getString('due_date');
+        const newAssignee = interaction.options.getUser('assignee');
 
         // Build updates object only for provided fields
         const updates = {};
@@ -318,6 +331,11 @@ module.exports = {
           }
           updates.deadline = parsedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
         }
+        
+        // Handle assignee
+        if (newAssignee) {
+          updates.assigneeId = newAssignee.id;
+        }
 
         if (Object.keys(updates).length === 0) {
           // Show current job details if no updates provided
@@ -328,6 +346,7 @@ module.exports = {
             `**Description:** ${job.description || 'None'}`,
             `**Priority:** ${job.priority || 'Not set'}`,
             `**Due Date:** ${job.deadline ? new Date(job.deadline + 'T12:00:00.000Z').toLocaleDateString() : 'Not set'}`,
+            `**Assignee:** ${job.assigneeId ? `<@${job.assigneeId}>` : 'Not assigned'}`,
             `**Notes:** ${job.notes || 'None'}`
           ].join('\n');
 
