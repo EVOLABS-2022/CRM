@@ -31,7 +31,7 @@ function daysTilDeadline(deadline) {
   return diffDays;
 }
 
-async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId = null) {
+async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId = null, client = null) {
   const tasks = await getTasks();
   const jobs = await getJobs();
   const clients = await getClients();
@@ -44,6 +44,24 @@ async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId 
   const activeTasks = tasks.filter(t => t.status !== 'completed');
   const openJobs = jobs.filter(j => j.status !== 'completed' && j.status !== 'closed');
   const pendingInvoices = invoices.filter(i => i.status !== 'paid' && i.status !== 'cancelled');
+  
+  // Find channel IDs for links
+  let clientBoardId = null;
+  let jobBoardId = null;
+  let taskBoardId = null;
+  
+  if (client) {
+    const guild = client.guilds.cache.get(guildId);
+    if (guild) {
+      const clientBoard = guild.channels.cache.find(ch => ch.name === '👥-client-board');
+      const jobBoard = guild.channels.cache.find(ch => ch.name === '🛠️-job-board');
+      const taskBoard = guild.channels.cache.find(ch => ch.name.includes('task-board'));
+      
+      clientBoardId = clientBoard?.id;
+      jobBoardId = jobBoard?.id;
+      taskBoardId = taskBoard?.id;
+    }
+  }
 
   // Categorize tasks by urgency
   const overdueTasks = activeTasks.filter(t => t.deadline && isOverdue(t.deadline));
@@ -61,7 +79,11 @@ async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId 
   // Quick stats
   sections.push('📊 **Quick Stats**');
   
-  sections.push(`• **${activeClients.length}** active [clients](https://discord.com/channels/${guildId}/👥-client-board)`);
+  if (clientBoardId) {
+    sections.push(`• **${activeClients.length}** active [clients](https://discord.com/channels/${guildId}/${clientBoardId})`);
+  } else {
+    sections.push(`• **${activeClients.length}** active clients`);
+  }
   
   if (inquiryThreadId) {
     sections.push(`• **${leads.length}** new [inquiries](https://discord.com/channels/${guildId}/${inquiryThreadId})`);
@@ -69,8 +91,17 @@ async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId 
     sections.push(`• **${leads.length}** new inquiries`);
   }
   
-  sections.push(`• **${openJobs.length}** open [jobs](https://discord.com/channels/${guildId}/🛠️-job-board)`);
-  sections.push(`• **${activeTasks.length}** active [tasks](https://discord.com/channels/${guildId}/task-board)`);
+  if (jobBoardId) {
+    sections.push(`• **${openJobs.length}** open [jobs](https://discord.com/channels/${guildId}/${jobBoardId})`);
+  } else {
+    sections.push(`• **${openJobs.length}** open jobs`);
+  }
+  
+  if (taskBoardId) {
+    sections.push(`• **${activeTasks.length}** active [tasks](https://discord.com/channels/${guildId}/${taskBoardId})`);
+  } else {
+    sections.push(`• **${activeTasks.length}** active tasks`);
+  }
   
   if (invoiceThreadId) {
     sections.push(`• **${pendingInvoices.length}** pending [invoices](https://discord.com/channels/${guildId}/${invoiceThreadId})`);
@@ -360,7 +391,7 @@ async function refreshAdminBoard(client, guildId, channelId, messageId = null) {
       refreshInvoiceThread(client, invoiceThread.id, invoices, clients, jobs)
     ]);
     
-    const embed = await buildAdminBoard(guildId, inquiryThread.id, invoiceThread.id);
+    const embed = await buildAdminBoard(guildId, inquiryThread.id, invoiceThread.id, client);
     
     // Get stored message ID if not provided
     const storedMessageId = messageId || settings.getAdminBoardMessageId?.(guildId);
