@@ -14,7 +14,7 @@ async function refreshLeadsBoard(client, leads = []) {
   const embed = new EmbedBuilder()
     .setTitle('🆕 Lead Board')
     .setColor('#f39c12') // Orange color for leads
-    .setDescription('New leads from website and Telegram that need to be converted to active clients\n'); // Line break after description
+    .setDescription('New leads from website and Telegram that need to be converted to active clients\n\n═══════════════════════════════════'); // Line break and horizontal divider
 
   const leadList = Array.isArray(leads) ? leads : [];
 
@@ -70,10 +70,17 @@ async function refreshLeadsBoard(client, leads = []) {
       });
     }
 
-    // Add conversion instructions with line break after leads
+    // Add horizontal divider after leads
+    embed.addFields({
+      name: '═══════════════════════════════════',
+      value: '\u200b', // Zero-width space for empty field
+      inline: false
+    });
+
+    // Add conversion instructions
     embed.addFields({
       name: '💡 How to Convert Leads',
-      value: '\nUse `/lead convert <lead>` to convert a lead to an active client. This will create their Discord channel and make them appear on the main client board.',
+      value: 'Use `/lead convert <lead>` to convert a lead to an active client. This will create their Discord channel and make them appear on the main client board.',
       inline: false
     });
   }
