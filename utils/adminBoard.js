@@ -61,12 +61,7 @@ async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId 
   // Quick stats
   sections.push('📊 **Quick Stats**');
   
-  // Find channel IDs for links
-  const clientBoardChannelId = '👥-client-board'; // Will be resolved by Discord
-  const jobBoardChannelId = '🛠️-job-board';
-  const taskBoardChannelId = 'task-board';
-  
-  sections.push(`• **${activeClients.length}** active [clients](https://discord.com/channels/${guildId}/${clientBoardChannelId})`);
+  sections.push(`• **${activeClients.length}** active [clients](https://discord.com/channels/${guildId}/👥-client-board)`);
   
   if (inquiryThreadId) {
     sections.push(`• **${leads.length}** new [inquiries](https://discord.com/channels/${guildId}/${inquiryThreadId})`);
@@ -74,8 +69,8 @@ async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId 
     sections.push(`• **${leads.length}** new inquiries`);
   }
   
-  sections.push(`• **${openJobs.length}** open [jobs](https://discord.com/channels/${guildId}/${jobBoardChannelId})`);
-  sections.push(`• **${activeTasks.length}** active [tasks](https://discord.com/channels/${guildId}/${taskBoardChannelId})`);
+  sections.push(`• **${openJobs.length}** open [jobs](https://discord.com/channels/${guildId}/🛠️-job-board)`);
+  sections.push(`• **${activeTasks.length}** active [tasks](https://discord.com/channels/${guildId}/task-board)`);
   
   if (invoiceThreadId) {
     sections.push(`• **${pendingInvoices.length}** pending [invoices](https://discord.com/channels/${guildId}/${invoiceThreadId})`);
