@@ -6,7 +6,7 @@ const { refreshAllBoards } = require('../lib/board');
 const { refreshInvoicesBoard } = require('../utils/invoiceBoard');
 const { refreshAllTaskBoards } = require('../utils/taskBoard');
 const { refreshAllAdminBoards } = require('../utils/adminBoard');
-const { refreshLeadsBoard, getLeadsFromClients } = require('../utils/leadBoard');
+const { getLeadsFromClients } = require('../utils/leadBoard');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -47,11 +47,7 @@ module.exports = {
       ]);
       
       // Refresh boards that need data dependencies
-      const leads = getLeadsFromClients(clients);
-      await Promise.all([
-        refreshInvoicesBoard(interaction.client, invoices, clients, jobs),
-        refreshLeadsBoard(interaction.client, leads)
-      ]);
+      await refreshInvoicesBoard(interaction.client, invoices, clients, jobs);
 
       const embed = new EmbedBuilder()
         .setTitle('✅ Sync Complete')
