@@ -1,5 +1,5 @@
 // commands/job.js
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, ModalBuilder, TextInputBuilder, ActionRowBuilder, TextInputStyle } = require('discord.js');
 const chrono = require('chrono-node');
 const { getClients, getJobs, createJob, updateJob } = require('../lib/sheetsDb');
 const { refreshAllBoards } = require('../lib/board');
@@ -261,22 +261,63 @@ module.exports = {
           });
         }
 
-        // Show current job details and ask what to edit
-        const currentDetails = [
-          `**Job:** ${job.title}`,
-          `**Client:** ${client.name} (${clientCode})`,
-          `**Status:** ${job.status || 'open'}`,
-          `**Description:** ${job.description || 'None'}`,
-          `**Priority:** ${job.priority || 'Not set'}`,
-          `**Budget:** ${job.budget ? `$${job.budget}` : 'Not set'}`,
-          `**Deadline:** ${job.deadline || 'Not set'}`,
-          `**Assignee:** ${job.assigneeId ? `<@${job.assigneeId}>` : 'Not assigned'}`,
-          `**Notes:** ${job.notes || 'None'}`
-        ].join('\n');
+        // Create modal with current job values pre-filled
+        const modal = new ModalBuilder()
+          .setCustomId(`job_edit_${job.id}_${client.code}`)
+          .setTitle(`Edit Job: ${job.id}`)
 
-        await interaction.editReply({
-          content: `📝 **Edit Job ${job.id}**\n\n${currentDetails}\n\n⚠️ **Job editing UI is being redesigned**\nFor now, please use the individual field commands or edit directly in Google Sheets.\n\nComing soon: Interactive edit modal!`
-        });
+        // Create text input fields with current values
+        const titleInput = new TextInputBuilder()
+          .setCustomId('title')
+          .setLabel('Job Title')
+          .setStyle(TextInputStyle.Short)
+          .setValue(job.title || '')
+          .setRequired(true)
+          .setMaxLength(100);
+
+        const descriptionInput = new TextInputBuilder()
+          .setCustomId('description')
+          .setLabel('Description')
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(job.description || '')
+          .setRequired(false)
+          .setMaxLength(1000);
+
+        const statusInput = new TextInputBuilder()
+          .setCustomId('status')
+          .setLabel('Status (open, in-progress, pending, completed, closed)')
+          .setStyle(TextInputStyle.Short)
+          .setValue(job.status || 'open')
+          .setRequired(false)
+          .setMaxLength(20);
+
+        const priorityInput = new TextInputBuilder()
+          .setCustomId('priority')
+          .setLabel('Priority (low, medium, high, urgent)')
+          .setStyle(TextInputStyle.Short)
+          .setValue(job.priority || '')
+          .setRequired(false)
+          .setMaxLength(20);
+
+        const notesInput = new TextInputBuilder()
+          .setCustomId('notes')
+          .setLabel('Additional Notes')
+          .setStyle(TextInputStyle.Paragraph)
+          .setValue(job.notes || '')
+          .setRequired(false)
+          .setMaxLength(500);
+
+        // Add inputs to action rows (Discord requires this)
+        const firstRow = new ActionRowBuilder().addComponents(titleInput);
+        const secondRow = new ActionRowBuilder().addComponents(descriptionInput);
+        const thirdRow = new ActionRowBuilder().addComponents(statusInput);
+        const fourthRow = new ActionRowBuilder().addComponents(priorityInput);
+        const fifthRow = new ActionRowBuilder().addComponents(notesInput);
+
+        modal.addComponents(firstRow, secondRow, thirdRow, fourthRow, fifthRow);
+
+        // Show the modal instead of replying
+        await interaction.showModal(modal);
 
       } catch (error) {
         console.error('❌ Job edit failed:', error);
@@ -343,5 +384,104 @@ module.exports = {
       }
       return;
     }
+  },
+
+  // Handle modal submission for job editing
+  async handleModal(interaction) {
+    if (!interaction.customId.startsWith('job_edit_')) return false;
+    
+    // Parse job ID and client code from custom ID
+    const [, , jobId, clientCode] = interaction.customId.split('_');
+    
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    
+    try {
+      // Get form values
+      const newTitle = interaction.fields.getTextInputValue('title');
+      const newDescription = interaction.fields.getTextInputValue('description');
+      const newStatus = interaction.fields.getTextInputValue('status');
+      const newPriority = interaction.fields.getTextInputValue('priority');
+      const newNotes = interaction.fields.getTextInputValue('notes');
+      
+      // Validate status if provided
+      const validStatuses = ['open', 'in-progress', 'pending', 'completed', 'closed'];
+      if (newStatus && !validStatuses.includes(newStatus.toLowerCase())) {
+        return await interaction.editReply({
+          content: `❌ Invalid status "${newStatus}". Valid options: ${validStatuses.join(', ')}`
+        });
+      }
+      
+      // Validate priority if provided
+      const validPriorities = ['low', 'medium', 'high', 'urgent'];
+      if (newPriority && !validPriorities.includes(newPriority.toLowerCase())) {
+        return await interaction.editReply({
+          content: `❌ Invalid priority "${newPriority}". Valid options: ${validPriorities.join(', ')}`
+        });
+      }
+      
+      // Get current job to compare changes
+      const jobs = await getJobs();
+      const job = jobs.find(j => j.id === jobId);
+      if (!job) {
+        return await interaction.editReply({ content: '❌ Job not found.' });
+      }
+      
+      // Build updates object only for changed fields
+      const updates = {};
+      if (newTitle !== job.title) updates.title = newTitle;
+      if (newDescription !== (job.description || '')) updates.description = newDescription;
+      if (newStatus && newStatus.toLowerCase() !== (job.status || 'open')) updates.status = newStatus.toLowerCase();
+      if (newPriority && newPriority.toLowerCase() !== (job.priority || '')) updates.priority = newPriority.toLowerCase();
+      if (newNotes !== (job.notes || '')) updates.notes = newNotes;
+      
+      if (Object.keys(updates).length === 0) {
+        return await interaction.editReply({ content: '✅ No changes made to the job.' });
+      }
+      
+      // Update job in sheets
+      console.log('📝 Updating job in Google Sheets:', job.title);
+      const updatedJob = await updateJob(jobId, updates);
+      
+      // Refresh client card, job thread, and boards
+      try {
+        const clients = await getClients();
+        const client = clients.find(c => c.code === clientCode);
+        
+        if (client) {
+          await ensureClientCard(interaction.client, interaction.guildId, client);
+          if (client.channelId) {
+            const channel = await interaction.client.channels.fetch(client.channelId).catch(() => null);
+            if (channel) {
+              await ensureJobThread(interaction.client, client, channel, updatedJob);
+            }
+          }
+        }
+        
+        await Promise.all([
+          refreshAllBoards(interaction.client),
+          refreshAllAdminBoards(interaction.client)
+        ]);
+        console.log('✅ Client card and boards refreshed');
+      } catch (error) {
+        console.error('❌ Failed to refresh client card/job thread/boards:', error);
+      }
+      
+      // Show success message with changes
+      const changedFields = Object.keys(updates).map(key => {
+        const oldValue = job[key] || 'empty';
+        const newValue = updates[key];
+        return `**${key}:** ${oldValue} → ${newValue}`;
+      }).join('\n');
+      
+      await interaction.editReply({
+        content: `✅ **Updated job ${updatedJob.title} (${updatedJob.id})**\n\n${changedFields}`
+      });
+      
+    } catch (error) {
+      console.error('❌ Job modal update failed:', error);
+      await interaction.editReply({ content: `❌ Failed to update job: ${error.message}` });
+    }
+    
+    return true; // Indicate we handled this modal
   }
 };
