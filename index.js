@@ -60,8 +60,22 @@ if (!global.__BENTO_INTERACTIONS_BOUND__) {
         return; // stop here
       }
 
-      // 3) Modal submits (invoice edit)
+      // 3) Modal submits (invoice edit + job edit)
       if (interaction.isModalSubmit()) {
+        // Check if any command can handle this modal
+        let handled = false;
+        for (const [name, cmd] of client.commands) {
+          if (cmd.handleModal && await cmd.handleModal(interaction)) {
+            handled = true;
+            break;
+          }
+        }
+        
+        if (handled) {
+          return; // Modal was handled by a command
+        }
+        
+        // Fallback to legacy invoice modal handling
         if (interaction.customId.startsWith('edit_invoice_')) {
           const invoiceId = interaction.customId.replace('edit_invoice_', '');
           try {
