@@ -31,7 +31,7 @@ function daysTilDeadline(deadline) {
   return diffDays;
 }
 
-async function buildAdminBoard(guildId) {
+async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId = null) {
   const tasks = await getTasks();
   const jobs = await getJobs();
   const clients = await getClients();
@@ -60,11 +60,28 @@ async function buildAdminBoard(guildId) {
 
   // Quick stats
   sections.push('📊 **Quick Stats**');
-  sections.push(`• **${activeClients.length}** active [clients](https://discord.com/channels/${guildId}/👥-client-board)`);
-  sections.push(`• **${leads.length}** new inquiries`);
-  sections.push(`• **${openJobs.length}** open [jobs](https://discord.com/channels/${guildId}/🛠️-job-board)`);
-  sections.push(`• **${activeTasks.length}** active [tasks](https://discord.com/channels/${guildId}/task-board)`);
-  sections.push(`• **${pendingInvoices.length}** pending invoices`);
+  
+  // Find channel IDs for links
+  const clientBoardChannelId = '👥-client-board'; // Will be resolved by Discord
+  const jobBoardChannelId = '🛠️-job-board';
+  const taskBoardChannelId = 'task-board';
+  
+  sections.push(`• **${activeClients.length}** active [clients](https://discord.com/channels/${guildId}/${clientBoardChannelId})`);
+  
+  if (inquiryThreadId) {
+    sections.push(`• **${leads.length}** new [inquiries](https://discord.com/channels/${guildId}/${inquiryThreadId})`);
+  } else {
+    sections.push(`• **${leads.length}** new inquiries`);
+  }
+  
+  sections.push(`• **${openJobs.length}** open [jobs](https://discord.com/channels/${guildId}/${jobBoardChannelId})`);
+  sections.push(`• **${activeTasks.length}** active [tasks](https://discord.com/channels/${guildId}/${taskBoardChannelId})`);
+  
+  if (invoiceThreadId) {
+    sections.push(`• **${pendingInvoices.length}** pending [invoices](https://discord.com/channels/${guildId}/${invoiceThreadId})`);
+  } else {
+    sections.push(`• **${pendingInvoices.length}** pending invoices`);
+  }
   sections.push('');
 
   // Task urgency breakdown
@@ -156,12 +173,199 @@ async function buildAdminBoard(guildId) {
     });
 }
 
+async function ensureAdminThreads(client, adminChannel) {
+  const threads = await adminChannel.threads.fetchActive();
+  
+  let inquiryThread = threads.threads.find(t => t.name.includes('New Inquiries'));
+  let invoiceThread = threads.threads.find(t => t.name.includes('Invoices'));
+  
+  // Create inquiry thread if it doesn't exist
+  if (!inquiryThread) {
+    inquiryThread = await adminChannel.threads.create({
+      name: '🆕 New Inquiries',
+      autoArchiveDuration: 1440, // 24 hours
+      reason: 'Admin board inquiry thread'
+    });
+    console.log('✅ Created inquiry thread in admin channel');
+  }
+  
+  // Create invoice thread if it doesn't exist
+  if (!invoiceThread) {
+    invoiceThread = await adminChannel.threads.create({
+      name: '🧾 Invoices',
+      autoArchiveDuration: 1440, // 24 hours
+      reason: 'Admin board invoice thread'
+    });
+    console.log('✅ Created invoice thread in admin channel');
+  }
+  
+  return { inquiryThread, invoiceThread };
+}
+
+async function refreshInquiryThread(client, threadId, leads) {
+  try {
+    const thread = await client.channels.fetch(threadId);
+    if (!thread) return;
+    
+    // Use the same embed from leadBoard but post it in the thread
+    const { refreshLeadsBoard } = require('./leadBoard');
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🆕 New Inquiries')
+      .setColor('#f39c12')
+      .setDescription('New inquiries from website and Telegram that need to be converted to active clients\n\n═══════════════════════════════════');
+
+    const leadList = Array.isArray(leads) ? leads : [];
+
+    if (leadList.length === 0) {
+      embed.addFields({
+        name: 'No inquiries found',
+        value: 'All inquiries have been converted to active clients! 🎉',
+        inline: false
+      });
+    } else {
+      for (const lead of leadList) {
+        const infoLines = [];
+        
+        if (lead.contactName || lead.contactMethod) {
+          const contactParts = [lead.contactName, lead.contactMethod].filter(Boolean);
+          infoLines.push(`**Contact:** ${contactParts.join(' | ') || 'N/A'}`);
+        }
+        
+        if (lead.description && lead.description.trim()) {
+          infoLines.push(`**Description:** ${lead.description.trim()}`);
+        }
+        
+        if (lead.notes && lead.notes.trim()) {
+          infoLines.push(`**Notes:** ${lead.notes.trim()}`);
+        }
+        
+        const systemInfo = [];
+        if (lead.id) systemInfo.push(`ID: ${lead.id}`);
+        if (lead.authCode) systemInfo.push(`Auth: ${lead.authCode}`);
+        if (lead.createdAt) {
+          const date = new Date(lead.createdAt);
+          systemInfo.push(`Created: ${date.toLocaleDateString()}`);
+        }
+        
+        if (systemInfo.length > 0) {
+          infoLines.push(`**System:** ${systemInfo.join(' | ')}`);
+        }
+        
+        infoLines.push(`**Status:** 🔄 **Ready for Conversion**`);
+        
+        const fieldValue = infoLines.length > 0 ? infoLines.join('\n') : 'No additional information available';
+
+        embed.addFields({
+          name: `${lead.code || 'NO-CODE'} — ${lead.name || 'Unnamed Lead'}`,
+          value: fieldValue.length > 1024 ? fieldValue.substring(0, 1021) + '...' : fieldValue,
+          inline: false,
+        });
+      }
+
+      embed.addFields({
+        name: '═══════════════════════════════════',
+        value: '\u200b',
+        inline: false
+      });
+
+      embed.addFields({
+        name: '💡 How to Convert Inquiries',
+        value: 'Use `/client convert <inquiry>` to convert an inquiry to an active client. This will create their Discord channel and make them appear on the main client board.',
+        inline: false
+      });
+    }
+
+    embed.setFooter({ 
+      text: `${leadList.length} inquiries • Updated ${new Date().toLocaleString()}` 
+    });
+
+    // Update the first message in the thread or send new one
+    const messages = await thread.messages.fetch({ limit: 1 });
+    if (messages.size > 0) {
+      await messages.first().edit({ embeds: [embed] });
+    } else {
+      await thread.send({ embeds: [embed] });
+    }
+    
+    console.log(`✅ Inquiry thread updated with ${leadList.length} inquiries`);
+  } catch (error) {
+    console.error('Failed to refresh inquiry thread:', error);
+  }
+}
+
+async function refreshInvoiceThread(client, threadId, invoices, clients, jobs) {
+  try {
+    const thread = await client.channels.fetch(threadId);
+    if (!thread) return;
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🧾 Invoices')
+      .setColor('#ffcc00')
+      .setDescription('List of all invoices with status and due dates\n\n═══════════════════════════════════');
+
+    const invList = Array.isArray(invoices) ? invoices : [];
+
+    if (invList.length === 0) {
+      embed.addFields({
+        name: 'No invoices found',
+        value: 'No invoices in the system yet.',
+        inline: false
+      });
+    } else {
+      for (const inv of invList) {
+        const client = clients.find(c => c.code === inv.clientCode);
+        const job = jobs.find(j => j.jobCode === inv.jobCode);
+
+        const due = inv.dueDate ? new Date(inv.dueDate + 'T12:00:00.000Z').toLocaleDateString() : null;
+        const status = inv.status || 'Unknown';
+
+        embed.addFields({
+          name: `#${inv.invoiceNumber || '????'} — ${inv.title || 'Untitled'}`,
+          value: `Client: ${client ? `${client.code} — ${client.name}` : 'Unknown'}\nJob: ${job ? job.title : 'Unknown'}\nStatus: ${status}${due ? ` (due ${due})` : ''}`,
+          inline: false,
+        });
+      }
+    }
+
+    embed.setFooter({ 
+      text: `${invList.length} invoices • Updated ${new Date().toLocaleString()}` 
+    });
+
+    // Update the first message in the thread or send new one
+    const messages = await thread.messages.fetch({ limit: 1 });
+    if (messages.size > 0) {
+      await messages.first().edit({ embeds: [embed] });
+    } else {
+      await thread.send({ embeds: [embed] });
+    }
+    
+    console.log(`✅ Invoice thread updated with ${invList.length} invoices`);
+  } catch (error) {
+    console.error('Failed to refresh invoice thread:', error);
+  }
+}
+
 async function refreshAdminBoard(client, guildId, channelId, messageId = null) {
   try {
     const channel = await client.channels.fetch(channelId);
     if (!channel) return null;
     
-    const embed = await buildAdminBoard(guildId);
+    // Ensure threads exist and get their IDs
+    const { inquiryThread, invoiceThread } = await ensureAdminThreads(client, channel);
+    
+    // Refresh thread contents
+    const leads = getLeadsFromClients(await getClients());
+    const invoices = await getInvoices();
+    const clients = await getClients();
+    const jobs = await getJobs();
+    
+    await Promise.all([
+      refreshInquiryThread(client, inquiryThread.id, leads),
+      refreshInvoiceThread(client, invoiceThread.id, invoices, clients, jobs)
+    ]);
+    
+    const embed = await buildAdminBoard(guildId, inquiryThread.id, invoiceThread.id);
     
     // Get stored message ID if not provided
     const storedMessageId = messageId || settings.getAdminBoardMessageId?.(guildId);
