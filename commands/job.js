@@ -61,6 +61,9 @@ module.exports = {
         .addStringOption(opt =>
           opt.setName('notes').setDescription('Additional notes')
         )
+        .addStringOption(opt =>
+          opt.setName('due_date').setDescription('Due date (e.g., "next Friday", "in 2 weeks", "Dec 15")')
+        )
     )
     .addSubcommand(sub =>
       sub
@@ -295,6 +298,7 @@ module.exports = {
         const newStatus = interaction.options.getString('status');
         const newPriority = interaction.options.getString('priority');
         const newNotes = interaction.options.getString('notes');
+        const newDueDate = interaction.options.getString('due_date');
 
         // Build updates object only for provided fields
         const updates = {};
@@ -303,6 +307,17 @@ module.exports = {
         if (newStatus) updates.status = newStatus;
         if (newPriority) updates.priority = newPriority;
         if (newNotes !== null) updates.notes = newNotes;
+        
+        // Handle due date parsing
+        if (newDueDate) {
+          const parsedDate = chrono.parseDate(newDueDate);
+          if (!parsedDate) {
+            return await interaction.editReply({
+              content: '❌ Could not understand the due date. Try formats like "next Friday", "in 2 weeks", "Dec 15", etc.'
+            });
+          }
+          updates.deadline = parsedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+        }
 
         if (Object.keys(updates).length === 0) {
           // Show current job details if no updates provided
@@ -312,6 +327,7 @@ module.exports = {
             `**Status:** ${job.status || 'open'}`,
             `**Description:** ${job.description || 'None'}`,
             `**Priority:** ${job.priority || 'Not set'}`,
+            `**Due Date:** ${job.deadline ? new Date(job.deadline + 'T12:00:00.000Z').toLocaleDateString() : 'Not set'}`,
             `**Notes:** ${job.notes || 'None'}`
           ].join('\n');
 
