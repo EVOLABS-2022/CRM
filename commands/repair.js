@@ -19,6 +19,24 @@ function generateAuthCode() {
   return result;
 }
 
+// Validate auth code format (exactly 8 characters, mix of letters and numbers)
+function isValidAuthCode(authCode) {
+  if (!authCode || typeof authCode !== 'string') return false;
+  
+  // Must be exactly 8 characters
+  if (authCode.length !== 8) return false;
+  
+  // Must contain only letters (upper/lower) and numbers
+  const validCharPattern = /^[A-Za-z0-9]+$/;
+  if (!validCharPattern.test(authCode)) return false;
+  
+  // Must contain at least one letter and one number for security
+  const hasLetter = /[A-Za-z]/.test(authCode);
+  const hasNumber = /[0-9]/.test(authCode);
+  
+  return hasLetter && hasNumber;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('repair')
@@ -67,7 +85,8 @@ module.exports = {
           .setDescription(isDryRun ? 'Preview of changes that would be made:' : 'Client data has been repaired:')
           .addFields(
             { name: 'Missing IDs Fixed', value: `${repairResult.idsFixed}`, inline: true },
-            { name: 'Missing Auth Codes Fixed', value: `${repairResult.authCodesFixed}`, inline: true },
+            { name: 'Auth Codes Fixed', value: `${repairResult.authCodesFixed}`, inline: true },
+            { name: 'Invalid Auth Codes Fixed', value: `${repairResult.invalidAuthCodesFixed}`, inline: true },
             { name: 'Clients Processed', value: `${repairResult.totalProcessed}`, inline: true }
           )
           .setColor(isDryRun ? 0xf39c12 : 0x2ecc71);
@@ -118,6 +137,7 @@ async function repairClientData(isDryRun = false) {
   const result = {
     idsFixed: 0,
     authCodesFixed: 0,
+    invalidAuthCodesFixed: 0,
     totalProcessed: 0,
     errors: []
   };
@@ -148,8 +168,12 @@ async function repairClientData(isDryRun = false) {
         console.log(`🔧 Generated ID for client: ${client.name} -> ${newId}`);
       }
 
-      // Check for missing auth code
-      if (!client.authCode || client.authCode.trim() === '') {
+      // Check for missing or invalid auth code
+      const hasAuthCode = client.authCode && client.authCode.trim() !== '';
+      const isValidFormat = hasAuthCode && isValidAuthCode(client.authCode.trim());
+      
+      if (!hasAuthCode) {
+        // Missing auth code
         let newAuthCode;
         do {
           newAuthCode = generateAuthCode();
@@ -159,6 +183,23 @@ async function repairClientData(isDryRun = false) {
         existingAuthCodes.add(newAuthCode);
         result.authCodesFixed++;
         needsUpdate = true;
+        console.log(`🔧 Generated missing auth code for client: ${client.name} -> ${newAuthCode}`);
+        
+      } else if (!isValidFormat) {
+        // Invalid auth code format - replace it
+        let newAuthCode;
+        do {
+          newAuthCode = generateAuthCode();
+        } while (existingAuthCodes.has(newAuthCode));
+        
+        updates.authCode = newAuthCode;
+        existingAuthCodes.add(newAuthCode);
+        result.invalidAuthCodesFixed++;
+        needsUpdate = true;
+        console.log(`🔧 Fixed invalid auth code for client: ${client.name} (was: "${client.authCode}") -> ${newAuthCode}`);
+      } else {
+        // Valid auth code - add to existing set to prevent duplicates
+        existingAuthCodes.add(client.authCode.trim());
       }
 
       // Apply updates if needed and not in dry run mode
