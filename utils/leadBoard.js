@@ -12,16 +12,16 @@ async function refreshLeadsBoard(client, leads = []) {
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🆕 Lead Board')
-    .setColor('#f39c12') // Orange color for leads
-    .setDescription('New leads from website and Telegram that need to be converted to active clients\n\n═══════════════════════════════════'); // Line break and horizontal divider
+    .setTitle('🆕 Inquiry Board')
+    .setColor('#f39c12') // Orange color for inquiries
+    .setDescription('New inquiries from website and Telegram that need to be converted to active clients\n\n═══════════════════════════════════'); // Line break and horizontal divider
 
   const leadList = Array.isArray(leads) ? leads : [];
 
   if (leadList.length === 0) {
     embed.addFields({
-      name: 'No leads found',
-      value: 'All leads have been converted to active clients! 🎉',
+      name: 'No inquiries found',
+      value: 'All inquiries have been converted to active clients! 🎉',
       inline: false
     });
   } else {
@@ -79,15 +79,15 @@ async function refreshLeadsBoard(client, leads = []) {
 
     // Add conversion instructions
     embed.addFields({
-      name: '💡 How to Convert Leads',
-      value: 'Use `/lead convert <lead>` to convert a lead to an active client. This will create their Discord channel and make them appear on the main client board.',
+      name: '💡 How to Convert Inquiries',
+      value: 'Use `/client convert <inquiry>` to convert an inquiry to an active client. This will create their Discord channel and make them appear on the main client board.',
       inline: false
     });
   }
 
   // Add footer with timestamp and count
   embed.setFooter({ 
-    text: `${leadList.length} leads • Updated ${new Date().toLocaleString()}` 
+    text: `${leadList.length} inquiries • Updated ${new Date().toLocaleString()}` 
   });
 
   try {
@@ -97,9 +97,9 @@ async function refreshLeadsBoard(client, leads = []) {
     } else {
       await channel.send({ embeds: [embed] });
     }
-    console.log(`✅ [Discord] Leads Board updated with ${leadList.length} leads`);
+    console.log(`✅ [Discord] Inquiry Board updated with ${leadList.length} inquiries`);
   } catch (err) {
-    console.error('❌ Failed to refresh Leads Board:', err);
+    console.error('❌ Failed to refresh Inquiry Board:', err);
   }
 }
 
