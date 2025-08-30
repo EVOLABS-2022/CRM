@@ -45,10 +45,11 @@ module.exports = {
         .addStringOption(opt =>
           opt.setName('status').setDescription('Job status')
           .addChoices(
-            { name: 'Open', value: 'open' },
+            { name: 'Lead', value: 'lead' },
+            { name: 'Contracted', value: 'contracted' },
             { name: 'In Progress', value: 'in-progress' },
-            { name: 'Pending', value: 'pending' },
             { name: 'Completed', value: 'completed' },
+            { name: 'Invoiced', value: 'invoiced' },
             { name: 'Closed', value: 'closed' }
           )
         )
@@ -214,7 +215,7 @@ module.exports = {
           clientCode,
           clientId: client.id,
           title,
-          status: 'open'
+          status: 'lead'
         };
         
         if (assignee) {
