@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { getClients, updateClient } = require('../lib/sheetsDb');
 const { refreshAllBoards } = require('../lib/board');
 const { refreshAllAdminBoards } = require('../utils/adminBoard');
+const { syncAllClientChannelsAndCards } = require('../lib/clientCard');
 const { hasPermission, PERMISSIONS } = require('../config/roles');
 
 // Generate 8-character auth code (mix of upper/lower letters and numbers)
@@ -102,22 +103,33 @@ module.exports = {
 
         await interaction.editReply({ embeds: [embed] });
 
-        // If this was a real repair (not dry run) and we're doing full repair, refresh boards
-        if (!isDryRun && sub === 'all') {
+        // If this was a real repair (not dry run), refresh client cards and boards
+        if (!isDryRun) {
           try {
-            await Promise.all([
-              refreshAllBoards(interaction.client),
-              refreshAllAdminBoards(interaction.client)
-            ]);
+            // Always refresh client cards since auth codes may have changed
+            await syncAllClientChannelsAndCards(interaction.client, interaction.guildId);
             
-            await interaction.followUp({
-              content: '✅ System boards refreshed successfully.',
-              flags: MessageFlags.Ephemeral
-            });
+            // If full repair, also refresh boards
+            if (sub === 'all') {
+              await Promise.all([
+                refreshAllBoards(interaction.client),
+                refreshAllAdminBoards(interaction.client)
+              ]);
+              
+              await interaction.followUp({
+                content: '✅ Client cards and system boards refreshed successfully.',
+                flags: MessageFlags.Ephemeral
+              });
+            } else {
+              await interaction.followUp({
+                content: '✅ Client cards refreshed with updated auth codes.',
+                flags: MessageFlags.Ephemeral
+              });
+            }
           } catch (error) {
-            console.error('Failed to refresh boards after repair:', error);
+            console.error('Failed to refresh after repair:', error);
             await interaction.followUp({
-              content: '⚠️ Client repair completed but board refresh failed. Run `/sync` manually.',
+              content: '⚠️ Client repair completed but refresh failed. Run `/sync` manually to update displays.',
               flags: MessageFlags.Ephemeral
             });
           }
