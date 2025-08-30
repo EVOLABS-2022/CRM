@@ -26,17 +26,46 @@ async function refreshLeadsBoard(client, leads = []) {
     });
   } else {
     for (const lead of leadList) {
-      // Format lead info similar to client board but focused on conversion
-      const fieldValue = [
-        `Contact: ${lead.contactName || 'N/A'} (${lead.contactMethod || 'N/A'})`,
-        `Source: ${lead.source || 'Unknown'}`,
-        `Created: ${lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A'}`,
-        `Status: **Needs Conversion** 🔄`
-      ].join('\n');
+      // Format lead info with all available data
+      const infoLines = [];
+      
+      // Contact information
+      if (lead.contactName || lead.contactMethod) {
+        const contactParts = [lead.contactName, lead.contactMethod].filter(Boolean);
+        infoLines.push(`**Contact:** ${contactParts.join(' | ') || 'N/A'}`);
+      }
+      
+      // Lead details
+      if (lead.description && lead.description.trim()) {
+        infoLines.push(`**Description:** ${lead.description.trim()}`);
+      }
+      
+      // Notes if available
+      if (lead.notes && lead.notes.trim()) {
+        infoLines.push(`**Notes:** ${lead.notes.trim()}`);
+      }
+      
+      // System information
+      const systemInfo = [];
+      if (lead.id) systemInfo.push(`ID: ${lead.id}`);
+      if (lead.authCode) systemInfo.push(`Auth: ${lead.authCode}`);
+      if (lead.createdAt) {
+        const date = new Date(lead.createdAt);
+        systemInfo.push(`Created: ${date.toLocaleDateString()}`);
+      }
+      
+      if (systemInfo.length > 0) {
+        infoLines.push(`**System:** ${systemInfo.join(' | ')}`);
+      }
+      
+      // Conversion status
+      infoLines.push(`**Status:** 🔄 **Ready for Conversion**`);
+      
+      const fieldValue = infoLines.length > 0 ? infoLines.join('\n') : 'No additional information available';
 
       embed.addFields({
-        name: `${lead.code || '???'} — ${lead.name || 'Unnamed Lead'}`,
-        value: fieldValue,
+        name: `${lead.code || 'NO-CODE'} — ${lead.name || 'Unnamed Lead'}`,
+        value: fieldValue.length > 1024 ? fieldValue.substring(0, 1021) + '...' : fieldValue,
         inline: false,
       });
     }
