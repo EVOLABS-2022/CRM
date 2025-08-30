@@ -12,7 +12,7 @@ async function refreshLeadsBoard(client, leads = []) {
   }
 
   const embed = new EmbedBuilder()
-    .setTitle('🆕 Inquiry Board')
+    .setTitle('🆕 New Inquiries')
     .setColor('#f39c12') // Orange color for inquiries
     .setDescription('New inquiries from website and Telegram that need to be converted to active clients\n\n═══════════════════════════════════'); // Line break and horizontal divider
 
