@@ -337,6 +337,107 @@ async function refreshInquiryThread(client, threadId, leads) {
   }
 }
 
+async function refreshLeadsThread(client, threadId, leads, clients, jobs) {
+  try {
+    const thread = await client.channels.fetch(threadId);
+    if (!thread) return;
+    
+    const embed = new EmbedBuilder()
+      .setTitle('🎯 New Leads')
+      .setColor('#3498db')
+      .setDescription('New leads that need follow-up and conversion to active clients\n\n═══════════════════════════════════');
+
+    const leadList = Array.isArray(leads) ? leads : [];
+
+    if (leadList.length === 0) {
+      embed.addFields({
+        name: 'No leads found',
+        value: 'All leads have been converted to active clients! 🎉',
+        inline: false
+      });
+    } else {
+      for (const lead of leadList) {
+        // Find jobs for this lead (if any)
+        const leadJobs = jobs.filter(j => j.clientId === lead.id || j.clientCode === lead.code);
+        
+        const sections = [];
+        
+        // First line: Client Name (link to channel), Job Title, Status
+        const clientLink = lead.channelId 
+          ? `[${lead.name}](https://discord.com/channels/${thread.guild.id}/${lead.channelId})`
+          : lead.name;
+        
+        let firstLine = `**${clientLink}**`;
+        
+        if (leadJobs.length > 0) {
+          const primaryJob = leadJobs[0]; // Use first job as primary
+          firstLine += ` • ${primaryJob.title || 'Untitled Job'} • Status: ${primaryJob.status || 'pending'}`;
+        } else {
+          firstLine += ` • No active jobs • Status: 🔄 Lead`;
+        }
+        
+        sections.push(firstLine);
+        
+        // Second line: Description/Notes
+        const description = lead.description || lead.notes || 'No description available';
+        sections.push(`**Description:** ${description.trim()}`);
+        
+        // Third line: Due date and assignee
+        let thirdLine = '';
+        if (leadJobs.length > 0) {
+          const primaryJob = leadJobs[0];
+          const dueDate = primaryJob.deadline ? prettyDate(primaryJob.deadline) : 'No due date';
+          const assignee = primaryJob.assigneeId ? `<@${primaryJob.assigneeId}>` : 'Unassigned';
+          thirdLine = `**Due:** ${dueDate} • **Assignee:** ${assignee}`;
+        } else {
+          thirdLine = `**Due:** Not scheduled • **Assignee:** Unassigned`;
+        }
+        sections.push(thirdLine);
+        
+        // Contact info if available
+        if (lead.contactName || lead.contactMethod) {
+          const contactParts = [lead.contactName, lead.contactMethod].filter(Boolean);
+          sections.push(`**Contact:** ${contactParts.join(' | ')}`);
+        }
+
+        embed.addFields({
+          name: `${lead.code || 'NO-CODE'} — ${lead.name || 'Unnamed Lead'}`,
+          value: sections.join('\n'),
+          inline: false,
+        });
+      }
+
+      embed.addFields({
+        name: '═══════════════════════════════════',
+        value: '\u200b',
+        inline: false
+      });
+
+      embed.addFields({
+        name: '💡 How to Work with Leads',
+        value: 'Use `/client convert <lead>` to convert to active client, or `/job create` to add jobs for follow-up.',
+        inline: false
+      });
+    }
+
+    embed.setFooter({ 
+      text: `${leadList.length} leads • Updated ${new Date().toLocaleString()}` 
+    });
+
+    // Update the first message in the thread or send new one
+    const messages = await thread.messages.fetch({ limit: 1 });
+    if (messages.size > 0) {
+      await messages.first().edit({ embeds: [embed] });
+    } else {
+      await thread.send({ embeds: [embed] });
+    }
+    
+    console.log(`✅ Leads thread updated with ${leadList.length} leads`);
+  } catch (error) {
+    console.error('Failed to refresh leads thread:', error);
+  }
+}
+
 async function refreshInvoiceThread(client, threadId, invoices, clients, jobs) {
   try {
     const thread = await client.channels.fetch(threadId);
@@ -405,6 +506,7 @@ async function refreshAdminBoard(client, guildId, channelId, messageId = null) {
     
     await Promise.all([
       refreshInquiryThread(client, inquiryThread.id, leads),
+      refreshLeadsThread(client, leadsThread.id, leads, clients, jobs),
       refreshInvoiceThread(client, invoiceThread.id, invoices, clients, jobs)
     ]);
     
