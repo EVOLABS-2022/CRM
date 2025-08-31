@@ -31,7 +31,7 @@ function daysTilDeadline(deadline) {
   return diffDays;
 }
 
-async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId = null, client = null) {
+async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId = null, leadsThreadId = null, client = null) {
   const tasks = await getTasks();
   const jobs = await getJobs();
   const clients = await getClients();
@@ -89,6 +89,12 @@ async function buildAdminBoard(guildId, inquiryThreadId = null, invoiceThreadId 
     sections.push(`• **${leads.length}** new [inquiries](https://discord.com/channels/${guildId}/${inquiryThreadId})`);
   } else {
     sections.push(`• **${leads.length}** new inquiries`);
+  }
+  
+  if (leadsThreadId) {
+    sections.push(`• **0** new [leads](https://discord.com/channels/${guildId}/${leadsThreadId})`);
+  } else {
+    sections.push(`• **0** new leads`);
   }
   
   if (jobBoardId) {
@@ -204,6 +210,7 @@ async function ensureAdminThreads(client, adminChannel) {
   
   let inquiryThread = threads.threads.find(t => t.name.includes('New Inquiries'));
   let invoiceThread = threads.threads.find(t => t.name.includes('Invoices'));
+  let leadsThread = threads.threads.find(t => t.name.includes('New Leads'));
   
   // Create inquiry thread if it doesn't exist
   if (!inquiryThread) {
@@ -213,6 +220,16 @@ async function ensureAdminThreads(client, adminChannel) {
       reason: 'Admin board inquiry thread'
     });
     console.log('✅ Created inquiry thread in admin channel');
+  }
+  
+  // Create leads thread if it doesn't exist
+  if (!leadsThread) {
+    leadsThread = await adminChannel.threads.create({
+      name: '🎯 New Leads',
+      autoArchiveDuration: 1440, // 24 hours
+      reason: 'Admin board leads thread'
+    });
+    console.log('✅ Created leads thread in admin channel');
   }
   
   // Create invoice thread if it doesn't exist
@@ -225,7 +242,7 @@ async function ensureAdminThreads(client, adminChannel) {
     console.log('✅ Created invoice thread in admin channel');
   }
   
-  return { inquiryThread, invoiceThread };
+  return { inquiryThread, leadsThread, invoiceThread };
 }
 
 async function refreshInquiryThread(client, threadId, leads) {
@@ -378,7 +395,7 @@ async function refreshAdminBoard(client, guildId, channelId, messageId = null) {
     if (!channel) return null;
     
     // Ensure threads exist and get their IDs
-    const { inquiryThread, invoiceThread } = await ensureAdminThreads(client, channel);
+    const { inquiryThread, leadsThread, invoiceThread } = await ensureAdminThreads(client, channel);
     
     // Refresh thread contents
     const leads = getLeadsFromClients(await getClients());
@@ -391,7 +408,7 @@ async function refreshAdminBoard(client, guildId, channelId, messageId = null) {
       refreshInvoiceThread(client, invoiceThread.id, invoices, clients, jobs)
     ]);
     
-    const embed = await buildAdminBoard(guildId, inquiryThread.id, invoiceThread.id, client);
+    const embed = await buildAdminBoard(guildId, inquiryThread.id, invoiceThread.id, leadsThread.id, client);
     
     // Get stored message ID if not provided
     const storedMessageId = messageId || settings.getAdminBoardMessageId?.(guildId);
